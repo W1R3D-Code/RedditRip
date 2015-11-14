@@ -10,16 +10,16 @@ namespace RedditRip
 {
     class Options
     {
-        [Option('s', "subreddits", Required = true, HelpText = "csv list of Subreddits to download Imgur images from.")]
+        [Option('s', "subreddits", Required = true, HelpText = "CSV list of Subreddits to download Imgur images from")]
         public string Subreddits { get; set; }
 
-        [Option('d', "destination", Required = true, HelpText = "Destination directory to downloads")]
+        [Option('d', "destination", Required = true, HelpText = "Destination Directory for downloads")]
         public string Destination { get; set; }
 
-        [Option('u', "username", Required = false, HelpText = "Reddit username")]
+        [Option('u', "username", Required = false, HelpText = "Optional. Reddit username")]
         public string Username { get; set; }
 
-        [Option('p', "password", Required = false, HelpText = "Reddit password")]
+        [Option('p', "password", Required = false, HelpText = "Optional. Reddit password")]
         public string Password { get; set; }
 
         [Option('n', "nsfw", DefaultValue = true, Required = false, HelpText = "Allow NSFW Posts")]
