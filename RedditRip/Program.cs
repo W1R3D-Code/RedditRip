@@ -1,4 +1,5 @@
-﻿using RedditSharp;
+﻿using CommandLine.Text;
+using RedditSharp;
 using RedditSharp.Things;
 using System;
 using System.Collections.Generic;
@@ -9,7 +10,6 @@ using System.Net;
 using System.Security.Policy;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using CommandLine.Text;
 
 namespace RedditRip
 {
@@ -17,11 +17,13 @@ namespace RedditRip
     {
         //TODO:: Sort out multiple threads per sub reddit
         //I had issues with this when incrementing file numbers so set to 1 for now
-        private const int PerSubThreadLimit = 1; 
+        private static int _perSubThreadLimit = 1;
+
         private const int PostQueryErrorLimit = 6;
 
         private static int countAllPosts;
         private static Options options;
+        private static string _filter;
 
         private static void Main(string[] args)
         {
@@ -31,10 +33,14 @@ namespace RedditRip
             var subReddits = new List<string>();
             var destination = string.Empty;
 
-
             if (CommandLine.Parser.Default.ParseArguments(args, options))
             {
                 subReddits.AddRange(options.Subreddits.Split(',').Where(x => !string.IsNullOrWhiteSpace(x)));
+
+                //if (subReddits.Count == 1)
+                //    _perSubThreadLimit = 6;
+
+                _filter = options.Filter;
 
                 if (!subReddits.Any())
                 {
@@ -43,7 +49,7 @@ namespace RedditRip
                 }
 
                 destination = options.Destination.TrimEnd('\\').Trim();
-                
+
                 if (!string.IsNullOrWhiteSpace(options.Username))
                 {
                     if (!string.IsNullOrWhiteSpace(options.Password))
@@ -70,7 +76,7 @@ namespace RedditRip
                     if (!dir.Exists)
                     {
                         OutputLine("Destination path not found, creating folder.", true);
-                       dir.Create();
+                        dir.Create();
                     }
                 }
                 catch (Exception e)
@@ -116,30 +122,30 @@ namespace RedditRip
 
             countAllPosts = 0;
 
-            //TODO:: Fix hacky hacky way of getting 'as many posts as possible' to simply get them all
-            //The first time I did this I was using the search method, searching all time (well launch of reddit to now)
-            //  using search like this only ever returned ~950 posts however, so I took this extreamly hacky approach
-            //  Since I use the post ID in the file name, I check if we have already downloaded the post before doing so.
+            //TODO:: Fix hacky hacky (bears repeating) way of getting 'as many posts as possible' to simply get them all
+            //  The first time I did this I was using the search method, searching all time (well launch of reddit to now)
+            //  however using search like this only ever returned ~950 posts; so I took this extreamly hacky approach as a test
+            //  Since I use the post ID in the file name, I check if we have already downloaded the post before doing so which prevents duplicates.
 
             //Top - All Time
-            var listing = subreddit.GetTop(FromTime.All).GetEnumerator();
-            DownloadListing(listing, outputPath);
+            var listing = subreddit.GetTop(FromTime.All).Where(x => string.IsNullOrWhiteSpace(_filter) || new Regex($"(?i){_filter}").IsMatch(x.Title));
+            DownloadListing(listing.GetEnumerator(), outputPath);
 
             //Top - Month
-            listing = subreddit.GetTop(FromTime.Month).GetEnumerator();
-            DownloadListing(listing, outputPath);
+            listing = subreddit.GetTop(FromTime.Month).Where(x => string.IsNullOrWhiteSpace(_filter) || new Regex($"(?i){_filter}").IsMatch(x.Title));
+            DownloadListing(listing.GetEnumerator(), outputPath);
 
             //Top - Week
-            listing = subreddit.GetTop(FromTime.Week).GetEnumerator();
-            DownloadListing(listing, outputPath);
+            listing = subreddit.GetTop(FromTime.Week).Where(x => string.IsNullOrWhiteSpace(_filter) || new Regex($"(?i){_filter}").IsMatch(x.Title));
+            DownloadListing(listing.GetEnumerator(), outputPath);
 
             //Hot
-            listing = subreddit.Hot.GetEnumerator();
-            DownloadListing(listing, outputPath);
+            listing = subreddit.Hot.Where(x => string.IsNullOrWhiteSpace(_filter) || new Regex($"(?i){_filter}").IsMatch(x.Title));
+            DownloadListing(listing.GetEnumerator(), outputPath);
 
             //New
-            listing = subreddit.New.GetEnumerator();
-            DownloadListing(listing, outputPath);
+            listing = subreddit.New.Where(x => string.IsNullOrWhiteSpace(_filter) || new Regex($"(?i){_filter}").IsMatch(x.Title));
+            DownloadListing(listing.GetEnumerator(), outputPath);
         }
 
         private static void DownloadListing(IEnumerator<Post> listing, string outputPath)
@@ -151,7 +157,7 @@ namespace RedditRip
                 {
                     Console.WriteLine();
                     var posts = new List<Post>();
-                    for (var i = 0; i < PerSubThreadLimit; i++)
+                    for (var i = 0; i < _perSubThreadLimit; i++)
                     {
                         if (options.AllAuthorsPosts)
                         {
@@ -197,11 +203,11 @@ namespace RedditRip
 
                     OutputLine($"Query returned: {posts.Count} posts.", true);
 
-                    for (var i = 0; i < posts.Count; i = i + PerSubThreadLimit)
+                    for (var i = 0; i < posts.Count; i = i + _perSubThreadLimit)
                     {
                         var downloads = new List<Task>();
 
-                        for (var j = 0; j < PerSubThreadLimit; j++)
+                        for (var j = 0; j < _perSubThreadLimit; j++)
                         {
                             if (posts.Count <= (i + j))
                                 break;
@@ -250,7 +256,7 @@ namespace RedditRip
             if (!Directory.GetFiles(filepath, $"*{post.Id}*", SearchOption.TopDirectoryOnly).Any())
             {
                 var filename = filepath + $"\\{name}_{post.SubredditName}_{post.Id}";
-                
+
                 var extention = GetExtention(url);
 
                 if (!string.IsNullOrEmpty(extention))
@@ -289,7 +295,7 @@ namespace RedditRip
                     if (imgurl.Contains("imgur.com"))
                     {
                         if (gridAlbum)
-                            imgurl = imgurl.Remove(imgurl.LastIndexOf('.') - 1,1);
+                            imgurl = imgurl.Remove(imgurl.LastIndexOf('.') - 1, 1);
 
                         if (!DownloadLink(imgurl, filename, localCount))
                         {
@@ -374,7 +380,7 @@ namespace RedditRip
                 extention = extention.Substring(0, extention.IndexOf('?'));
             return extention;
         }
-        
+
         private static void OutputLine(string message, bool verboseMessage = false)
         {
             if (verboseMessage && !options.Verbose) return;

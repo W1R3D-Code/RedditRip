@@ -1,17 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using CommandLine;
-using CommandLine.Text;
+﻿using CommandLine;
 
 namespace RedditRip
 {
-    class Options
+    internal class Options
     {
         [Option('s', "subreddits", Required = true, HelpText = "CSV list of Subreddits to download Imgur images from")]
         public string Subreddits { get; set; }
+
+        [Option('f', "filter", Required = true, HelpText = "Filter to apply to post Titles, supports Regular Expressions")]
+        public string Filter { get; set; }
 
         [Option('d', "destination", Required = true, HelpText = "Destination Directory for downloads")]
         public string Destination { get; set; }
