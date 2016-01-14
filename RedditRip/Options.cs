@@ -7,11 +7,11 @@ namespace RedditRip
         [Option('s', "subreddits", Required = true, HelpText = "CSV list of Subreddits to download Imgur images from")]
         public string Subreddits { get; set; }
 
-        [Option('f', "filter", Required = true, HelpText = "Filter to apply to post Titles, supports Regular Expressions")]
-        public string Filter { get; set; }
-
         [Option('d', "destination", Required = true, HelpText = "Destination Directory for downloads")]
         public string Destination { get; set; }
+
+        [Option('f', "filter", Required = false, HelpText = "Filter to apply to post Titles, supports Regular Expressions and is case insensitive")]
+        public string Filter { get; set; }
 
         [Option('u', "username", Required = false, HelpText = "Optional. Reddit username")]
         public string Username { get; set; }
