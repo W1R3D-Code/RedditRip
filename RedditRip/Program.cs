@@ -1,4 +1,5 @@
 ﻿using CommandLine.Text;
+using RedditRip.Core;
 using RedditSharp;
 using RedditSharp.Things;
 using System;
@@ -6,9 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Security.Policy;
-using System.Text.RegularExpressions;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace RedditRip
@@ -16,46 +15,32 @@ namespace RedditRip
     internal class Program
     {
         //TODO:: Sort out multiple threads per sub reddit
-        //I had issues with this when incrementing file numbers so set to 1 for now
-        private static int _perSubThreadLimit = 1;
-
-        private const int PostQueryErrorLimit = 6;
-
-        private static int countAllPosts;
-        private static Options options;
-        private static string _filter;
+        private static Options _options;
 
         private static void Main(string[] args)
         {
+            string destination;
             var reddit = new Reddit();
-
-            options = new Options();
             var subReddits = new List<string>();
-            var destination = string.Empty;
+            var links = new List<ImageLink>();
+            _options = new Options();
 
-            if (CommandLine.Parser.Default.ParseArguments(args, options))
+            if (CommandLine.Parser.Default.ParseArguments(args, _options))
             {
-                subReddits.AddRange(options.Subreddits.Split(',').Where(x => !string.IsNullOrWhiteSpace(x)));
+                if (_options.Subreddits != null)
+                    subReddits.AddRange(_options.Subreddits.Split(',').Where(x => !string.IsNullOrWhiteSpace(x)));
 
-                //if (subReddits.Count == 1)
-                //    _perSubThreadLimit = 6;
+                var ripper = new Core.RedditRip(_options.Filter, _options.AllAuthorsPosts, _options.NSFW,
+                    _options.OnlyNSFW, _options.Verbose);
 
-                _filter = options.Filter;
+                destination = _options.Destination.TrimEnd('\\').Trim();
 
-                if (!subReddits.Any())
+                if (!string.IsNullOrWhiteSpace(_options.Username))
                 {
-                    OutputLine("Invalid Subreddits");
-                    return;
-                }
-
-                destination = options.Destination.TrimEnd('\\').Trim();
-
-                if (!string.IsNullOrWhiteSpace(options.Username))
-                {
-                    if (!string.IsNullOrWhiteSpace(options.Password))
+                    if (!string.IsNullOrWhiteSpace(_options.Password))
                     {
-                        OutputLine($"Logging into Reddit as {options.Username}");
-                        reddit.LogIn(options.Username, options.Password);
+                        OutputLine($"Logging into Reddit as {_options.Username}");
+                        reddit.LogIn(_options.Username, _options.Password);
                     }
                     else
                     {
@@ -63,7 +48,7 @@ namespace RedditRip
                         return;
                     }
                 }
-                else if (!string.IsNullOrWhiteSpace(options.Password))
+                else if (!string.IsNullOrWhiteSpace(_options.Password))
                 {
                     OutputLine("Username can not be empty when supplying a password.");
                     return;
@@ -84,308 +69,152 @@ namespace RedditRip
                     OutputLine($"Invalid Destination Path: {e.Message}. Please enter a valid path.");
                     return;
                 }
-            }
-            else
-            {
-                Console.WriteLine(HelpText.AutoBuild(options));
-                return;
-            }
-
-            try
-            {
-                Task.WaitAll(
-                subReddits.Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Select(sub => Task.Factory.StartNew(() => DownloadImgurLinksFromSub(reddit, sub, destination)))
-                    .ToArray());
-            }
-            catch (Exception e)
-            {
-                OutputLine($"An Unexpected Error Occured: {e.Message}");
-            }
-        }
-
-        private static void DownloadImgurLinksFromSub(Reddit reddit, string sub, string outputPath)
-        {
-            Subreddit subreddit;
-
-            try
-            {
-                subreddit = reddit.GetSubreddit(sub);
-            }
-            catch (Exception e)
-            {
-                OutputLine($"Error connecting to reddit: {e.Message}");
-                return;
-            }
-
-            OutputLine($"{subreddit.Name}: Begining Search...");
-
-            countAllPosts = 0;
-
-            //TODO:: Fix hacky hacky (bears repeating) way of getting 'as many posts as possible' to simply get them all
-            //  The first time I did this I was using the search method, searching all time (well launch of reddit to now)
-            //  however using search like this only ever returned ~950 posts; so I took this extreamly hacky approach as a test
-            //  Since I use the post ID in the file name, I check if we have already downloaded the post before doing so which prevents duplicates.
-
-            //Top - All Time
-            var listing = subreddit.GetTop(FromTime.All).Where(x => string.IsNullOrWhiteSpace(_filter) || new Regex($"(?i){_filter}").IsMatch(x.Title));
-            DownloadListing(listing.GetEnumerator(), outputPath);
-
-            //Top - Month
-            listing = subreddit.GetTop(FromTime.Month).Where(x => string.IsNullOrWhiteSpace(_filter) || new Regex($"(?i){_filter}").IsMatch(x.Title));
-            DownloadListing(listing.GetEnumerator(), outputPath);
-
-            //Top - Week
-            listing = subreddit.GetTop(FromTime.Week).Where(x => string.IsNullOrWhiteSpace(_filter) || new Regex($"(?i){_filter}").IsMatch(x.Title));
-            DownloadListing(listing.GetEnumerator(), outputPath);
-
-            //Hot
-            listing = subreddit.Hot.Where(x => string.IsNullOrWhiteSpace(_filter) || new Regex($"(?i){_filter}").IsMatch(x.Title));
-            DownloadListing(listing.GetEnumerator(), outputPath);
-
-            //New
-            listing = subreddit.New.Where(x => string.IsNullOrWhiteSpace(_filter) || new Regex($"(?i){_filter}").IsMatch(x.Title));
-            DownloadListing(listing.GetEnumerator(), outputPath);
-        }
-
-        private static void DownloadListing(IEnumerator<Post> listing, string outputPath)
-        {
-            var erroCount = 0;
-            try
-            {
-                while (listing.MoveNext())
+                try
                 {
-                    Console.WriteLine();
-                    var posts = new List<Post>();
-                    for (var i = 0; i < _perSubThreadLimit; i++)
+                    var tasks = new List<Task>();
+                    if (!string.IsNullOrWhiteSpace(_options.ImportFrom))
                     {
-                        if (options.AllAuthorsPosts)
+                        try
                         {
-                            OutputLine($"Getting all posts for user: {listing.Current.AuthorName}", true);
-                            var userPosts =
-                                listing.Current.Author.Posts.OrderByDescending(post => post.Score)
-                                    .Where(
-                                        post =>
-                                            post.Id != listing.Current.Id && post.Url.DnsSafeHost.Contains("imgur.com")).ToList();
-
-                            if (userPosts.Any()) i--;
-                            foreach (var userPost in userPosts)
+                            using (var file = new StreamReader(_options.ImportFrom))
                             {
-                                if ((userPost.NSFW && !options.NSFW) || (!userPost.NSFW && options.OnlyNSFW))
-                                {
-                                    var suffix = userPost.NSFW ? "NSFW" : "non-NSFW";
-                                    OutputLine($"Skipping {userPost.Url} ({suffix})", true);
-                                    continue;
-                                }
+                                string line;
+                                var lineCount = 1;
+                                //var importedPosts = new List<Post>();
 
-                                posts.Add(userPost);
-                                countAllPosts++;
-                                i++;
+                                while ((line = file.ReadLine()) != null)
+                                {
+                                    var link = line.Split('|');
+                                    //Post post;
+                                    OutputLine($"Reading Line {lineCount}");
+                                    //if (!importedPosts.Exists(x => x.Id == line[0]))
+                                    //{
+                                    //    var postUrl = new Uri("https://reddit.com/r/" + line[1] + "/" + line[0]);
+                                    //    post = reddit.GetPost(postUrl);
+                                    //    if (post != null)
+                                    //        importedPosts.Add(post);
+                                    //}
+                                    //else
+                                    //{
+                                    //    post = importedPosts.FirstOrDefault(x => x.Id == line[0]);
+                                    //}
+                                    links.Add(new ImageLink(new Post() { Id = link[0], SubredditName = link[1], AuthorName = link[2] }, link[4], link[3]));
+                                    lineCount++;
+
+                                    if (file.EndOfStream) break;
+                                }
                             }
+                        }
+                        catch (Exception e)
+                        {
+                            OutputLine($"Error reading from input file: {e.Message}");
+                            throw;
+                        }
+                    }
+                    else
+                    {
+                        if (subReddits.Any())
+                        {
+                            tasks.AddRange(subReddits.Where(x => !string.IsNullOrWhiteSpace(x))
+                                .Select(
+                                    sub =>
+                                        Task<List<ImageLink>>.Factory.StartNew(
+                                            () => ripper.GetImgurLinksFromSubReddit(reddit, sub, destination))));
                         }
                         else
                         {
-                            if (!listing.Current.Domain.Contains("imgur.com") || (!options.NSFW && listing.Current.NSFW) ||
-                                (options.OnlyNSFW && !listing.Current.NSFW))
+                            tasks.Add(
+                                Task<List<ImageLink>>.Factory.StartNew(
+                                    () => ripper.GetImgurLinksFromSubReddit(reddit, null, destination)));
+                        }
+
+                        Task.WaitAll(tasks.ToArray());
+
+                        links = tasks.Cast<Task<List<ImageLink>>>()
+                            .Aggregate(links, (current, task) => CombineLinkLists(task.Result, current));
+                    }
+
+                    var posts = links.GroupBy(x => x.Post.Id).ToDictionary(x => x.Key, x => x.ToList());
+
+                    tasks = new List<Task>();
+
+                    if (!_options.ExportLinks)
+                    {
+                        foreach (var post in posts)
+                        {
+                            var firstLink = post.Value.FirstOrDefault();
+
+                            if (firstLink?.Post != null && string.IsNullOrWhiteSpace(_options.ImportFrom))
                             {
-                                var suffix = listing.Current.NSFW ? " NSFW" : listing.Current.Url.DnsSafeHost;
-                                OutputLine($"Skipping {listing.Current.Url} ({suffix})", true);
-                                continue;
+                                var detailsFilepath = Path.GetDirectoryName(firstLink?.Filename);
+                                var detailsFilename = detailsFilepath + "\\postDetails.txt";
+                                var details = firstLink.GetPostDetails(post);
+
+                                Directory.CreateDirectory(detailsFilepath);
+                                File.WriteAllText(detailsFilename, details);
+                            }
+                            var count = 1;
+                            foreach (var imageLink in post.Value)
+                            {
+                                tasks.Add(
+                                    Task.Factory.StartNew(
+                                        () => ripper.DownloadLink(imageLink, imageLink.Filename, count)));
+                                count++;
                             }
 
-                            posts.Add(listing.Current);
-                            countAllPosts++;
+                            if (tasks.Count() < 10) continue;
+
+                            Task.WaitAll(tasks.ToArray());
+                            tasks = new List<Task>();
                         }
 
-                        if (!listing.MoveNext())
-                            break;
+                        if (tasks.Any())
+                            Task.WaitAll(tasks.ToArray());
                     }
-
-                    OutputLine($"Query returned: {posts.Count} posts.", true);
-
-                    for (var i = 0; i < posts.Count; i = i + _perSubThreadLimit)
+                    else
                     {
-                        var downloads = new List<Task>();
-
-                        for (var j = 0; j < _perSubThreadLimit; j++)
+                        var timestamp = (DateTime.Now.ToShortDateString() + "_" + DateTime.Now.ToShortTimeString()).Replace('/', '.').Replace('\\', '.').Replace(':', '.');
+                        var linksFilename = _options.Destination + $"\\links-{timestamp}.txt";
+                        Directory.CreateDirectory(_options.Destination);
+                        using (var file = new StreamWriter(linksFilename))
                         {
-                            if (posts.Count <= (i + j))
-                                break;
-
-                            var post = posts[i + j];
-                            downloads.Add(Task.Factory.StartNew(() => GetImgurImageOrAlbumFromUrl(post, outputPath)));
+                            foreach (var link in posts.SelectMany(post => post.Value))
+                            {
+                                file.WriteLine(link.Post.Id + "|" + link.Post.SubredditName + "|" +
+                                               link.Post.AuthorName + "|" + link.Filename + "|" + link.Url);
+                            }
                         }
-                        Task.WaitAll(downloads.ToArray());
-                    }
-                    OutputLine($"Running Total: {countAllPosts} posts processed.");
-                }
-            }
-            catch (Exception e)
-            {
-                OutputLine($"Error: {e.Message}");
-                erroCount++;
-                if (erroCount > PostQueryErrorLimit)
-                {
-                    throw;
-                }
-            }
-        }
-
-        private static void GetImgurImageOrAlbumFromUrl(Post post, string outputPath)
-        {
-            var localCount = 1;
-            var url = new Uri(post.Url.ToString()).GetLeftPart(UriPartial.Path);
-
-            var name = Path.GetInvalidFileNameChars()
-                .Aggregate(post.AuthorName, (current, c) => current.Replace(c, '-'));
-
-            var filepath = outputPath + "\\";
-
-            if (options.AllAuthorsPosts)
-            {
-                filepath += post.AuthorName;
-            }
-            else
-            {
-                filepath += post.SubredditName + "\\" + name;
-            }
-
-            var dir = new DirectoryInfo(filepath);
-            dir.Create();
-
-            if (!Directory.GetFiles(filepath, $"*{post.Id}*", SearchOption.TopDirectoryOnly).Any())
-            {
-                var filename = filepath + $"\\{name}_{post.SubredditName}_{post.Id}";
-
-                var extention = GetExtention(url);
-
-                if (!string.IsNullOrEmpty(extention))
-                {
-                    OutputLine($"\tDownloading {url}", true);
-                    if (!DownloadLink(url, filename, localCount))
-                    {
-                        OutputLine($"\tError downloading {url}", true);
-                        return;
                     }
                 }
-
-                string htmlString;
-                if (!GetHtml(url, out htmlString)) return;
-
-                var caroselAlbum = htmlString.Contains(@"data-layout=""h""");
-                bool gridAlbum;
-
-                if (caroselAlbum)
-                    if (!GetHtml(url + "/all", out htmlString)) return;
-
-                gridAlbum = htmlString.Contains(@"data-layout=""g""");
-
-                if (caroselAlbum && !gridAlbum) return;
-
-                var regPattern = new Regex(@"<img[^>]*?src\s*=\s*[""']?([^'"" >]+?)[ '""][^>]*?>",
-                    RegexOptions.IgnoreCase);
-
-                var matchImageLinks = regPattern.Matches(htmlString);
-
-                OutputLine($"\tFound {matchImageLinks.Count} image(s) from link.", true);
-
-                foreach (Match m in matchImageLinks)
+                catch (Exception e)
                 {
-                    var imgurl = m.Groups[1].Value;
-                    if (imgurl.Contains("imgur.com"))
-                    {
-                        if (gridAlbum)
-                            imgurl = imgurl.Remove(imgurl.LastIndexOf('.') - 1, 1);
-
-                        if (!DownloadLink(imgurl, filename, localCount))
-                        {
-                            OutputLine($"\tError downloading {imgurl}", true);
-                            return;
-                        }
-
-                        localCount++;
-                    }
+                    OutputLine($"An Unexpected Error Occured: {e.Message}");
                 }
             }
             else
             {
-                OutputLine($"Skipping Post, already downloaded: {post.Id}", true);
+                Console.WriteLine(HelpText.AutoBuild(_options));
             }
         }
-
-        private static bool GetHtml(string url, out string htmlString)
-        {
-            htmlString = string.Empty;
-
-            try
-            {
-                using (var wchtml = new WebClient())
-                {
-                    htmlString = wchtml.DownloadString(url);
-                }
-            }
-            catch (Exception e)
-            {
-                OutputLine($"\tError loading album {url}: {e.Message}", true);
-                return false;
-            }
-            return true;
-        }
-
-        private static bool DownloadLink(string url, string filenameBase, int filenameNumber)
-        {
-            try
-            {
-                var uri = new Uri(url);
-                var domain = uri.DnsSafeHost;
-
-                // if the image was removed and was linked directly, removed.png is served up instead
-                if (string.IsNullOrWhiteSpace(domain) || url.Contains("removed.png"))
-                    return false;
-
-                var link = url.StartsWith("http://")
-                    ? url
-                    : "http://" +
-                      url.Substring(url.IndexOf(domain));
-
-                link = link.Replace(".gifv", ".gif");
-
-                var extention = GetExtention(link);
-
-                var filename = filenameBase + "_" + filenameNumber.ToString().PadLeft(4, '0') + extention;
-
-                using (var wc = new WebClient())
-                {
-                    OutputLine($"\tDownloading: {url} to {filename}");
-                    wc.DownloadFile(link, filename);
-                }
-            }
-            catch (Exception e)
-            {
-                OutputLine($"Failed to download link {url}: {e.Message}", true);
-                return false;
-            }
-
-            return true;
-        }
-
-        private static string GetExtention(string imgurl)
-        {
-            var extention = (imgurl.Contains('.') && imgurl.LastIndexOf('.') > imgurl.LastIndexOf('/') &&
-                             imgurl.LastIndexOf('.') < (imgurl.Length - 2))
-                ? imgurl.Substring(imgurl.LastIndexOf('.'))
-                : string.Empty;
-
-            if (extention.Contains('?'))
-                extention = extention.Substring(0, extention.IndexOf('?'));
-            return extention;
-        }
-
+        
         private static void OutputLine(string message, bool verboseMessage = false)
         {
-            if (verboseMessage && !options.Verbose) return;
+            if (verboseMessage && !_options.Verbose) return;
             Debug.WriteLine($"{DateTime.Now.ToShortTimeString()}: {message}");
             Console.WriteLine($"{DateTime.Now.ToShortTimeString()}: : {message}");
+        }
+
+        private static List<ImageLink> CombineLinkLists(IEnumerable<ImageLink> results, List<ImageLink> links)
+        {
+            foreach (var link in results)
+            {
+                if (links.Exists(x => x.Url == link.Url))
+                    OutputLine($"Link already obtained: {link.Url} (XPost {link.Post.Url})", true);
+                else
+                    links.Add(link);
+            }
+
+            return links;
         }
     }
 }

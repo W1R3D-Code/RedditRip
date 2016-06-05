@@ -1,9 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.23107.0
+VisualStudioVersion = 14.0.25123.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedditRip", "RedditRip\RedditRip.csproj", "{45AD2CD2-29D8-4F00-A3B0-5B3B1DDBEF6D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedditRip.Core", "RedditRip.Core\RedditRip.Core.csproj", "{CDEC6FFC-FBC5-4163-ABD0-5F54F8F0FF6C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedditRip.UI", "RedditRip.UI\RedditRip.UI.csproj", "{87A05DCA-5A25-4E5A-8D30-5D5B7FFDD93F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +19,14 @@ Global
 		{45AD2CD2-29D8-4F00-A3B0-5B3B1DDBEF6D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{45AD2CD2-29D8-4F00-A3B0-5B3B1DDBEF6D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{45AD2CD2-29D8-4F00-A3B0-5B3B1DDBEF6D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CDEC6FFC-FBC5-4163-ABD0-5F54F8F0FF6C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CDEC6FFC-FBC5-4163-ABD0-5F54F8F0FF6C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CDEC6FFC-FBC5-4163-ABD0-5F54F8F0FF6C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CDEC6FFC-FBC5-4163-ABD0-5F54F8F0FF6C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87A05DCA-5A25-4E5A-8D30-5D5B7FFDD93F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87A05DCA-5A25-4E5A-8D30-5D5B7FFDD93F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87A05DCA-5A25-4E5A-8D30-5D5B7FFDD93F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87A05DCA-5A25-4E5A-8D30-5D5B7FFDD93F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
