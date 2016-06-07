@@ -36,6 +36,7 @@ namespace RedditRip.Core
             sb.Append(string.IsNullOrWhiteSpace(imageLink?.Post.AuthorFlairText)
                 ? string.Empty
                 : imageLink?.Post.AuthorFlairText);
+            sb.AppendLine();
 
             if (imageLink?.Post?.Title != null)
             {

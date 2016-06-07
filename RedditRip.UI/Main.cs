@@ -8,6 +8,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using RedditSharp;
@@ -17,6 +18,10 @@ namespace RedditRip.UI
 {
     public partial class Main : Form
     {
+        private Task downloads { get; set; }
+        private CancellationTokenSource cts;
+
+        private const string LogTabName = "logTab";
         private static readonly log4net.ILog log =
             log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
@@ -24,15 +29,24 @@ namespace RedditRip.UI
 
         public Main()
         {
+            cts = new CancellationTokenSource();
             InitializeComponent();
         }
 
         private void Main_Load(object sender, EventArgs e)
         {
             txtLog.Text = Environment.NewLine;
+            Tabs.SelectedIndex = Tabs.TabPages[LogTabName].TabIndex;
         }
-        private async void btnDownload_Click(object sender, EventArgs e)
+        private void btnDownload_Click(object sender, EventArgs e)
         {
+            Tabs.SelectedIndex = Tabs.TabPages[LogTabName].TabIndex;
+            StartDownload();
+        }
+
+        private void StartDownload()
+        {
+            cts = new CancellationTokenSource();
             if (string.IsNullOrWhiteSpace(txtDestination.Text))
                 SetDestination();
 
@@ -41,11 +55,11 @@ namespace RedditRip.UI
                 txtDestination.Enabled = false;
                 btnGetLinks.Enabled = false;
 
-                Tabs.SelectedIndex = Tabs.TabPages["log"].TabIndex;
                 OutputLine("Starting downloads....");
-                var downloads = new Task(DownloadLinks);
-                downloads.Start();
-                
+                downloads = new TaskFactory().StartNew(() => DownloadLinks(cts.Token), cts.Token);
+
+                btnCancel.Enabled = true;
+
                 txtDestination.Enabled = true;
                 btnGetLinks.Enabled = true;
             }
@@ -55,17 +69,23 @@ namespace RedditRip.UI
         {
             if (!string.IsNullOrWhiteSpace(txtSubReddit.Text))
             {
-                if (!listSubReddits.Items.ContainsKey(txtSubReddit.Text))
-                {
-                    var sub = new ListViewItem()
-                    {
-                        Name = txtSubReddit.Text,
-                        Text = txtSubReddit.Text
-                    };
+                var subs =
+                    txtSubReddit.Text.Split(',').Where(x => !string.IsNullOrWhiteSpace(x.Trim())).Select(x => x.Trim());
 
-                    listSubReddits.Items.Add(sub);
-                    listSubReddits.SelectedIndices.Clear();
-                    listSubReddits.SelectedIndices.Add(listSubReddits.Items.IndexOfKey(txtSubReddit.Text));
+                foreach (var sub in subs)
+                {
+                    if (!listSubReddits.Items.ContainsKey(sub))
+                    {
+                        var listViewItem = new ListViewItem()
+                        {
+                            Name = sub,
+                            Text = sub
+                        };
+
+                        listSubReddits.Items.Add(listViewItem);
+                        listSubReddits.SelectedIndices.Clear();
+                        listSubReddits.SelectedIndices.Add(listSubReddits.Items.IndexOfKey(sub));
+                    }
                 }
                 txtSubReddit.Text = string.Empty;
             }
@@ -107,21 +127,60 @@ namespace RedditRip.UI
             btnGetLinks.Enabled = listSubReddits.Items.Count > 0;
         }
 
-        private async void btnGetLinks_Click(object sender, EventArgs e)
+        private void btnGetLinks_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(txtDestination.Text))
-            {
-                MessageBox.Show(
-                    "You must select a destination." + Environment.NewLine +
-                    "Links are saved with a destination filepath based on the root destination folder you select.",
-                    "Select a destination");
-                return;
-            }
+            var download = MessageBox.Show("Download file after getting links?", "Download when done.",
+                MessageBoxButtons.YesNoCancel);
+
+            if (download == DialogResult.Cancel) return;
+
+            Tabs.SelectedIndex = Tabs.TabPages["links"].TabIndex;
+            cts = new CancellationTokenSource();
+            btnCancel.Enabled = true;
             txtDestination.Enabled = false;
             linkTree.Nodes.Clear();
-            Tabs.SelectedIndex = Tabs.TabPages["log"].TabIndex;
-            _links = await GetLinks();
-            UpdateLinkTree();
+
+            Tabs.SelectedIndex = Tabs.TabPages[LogTabName].TabIndex;
+            var subs = (from ListViewItem item in listSubReddits.Items select item.Name).ToList();
+
+            if (download == DialogResult.Yes)
+            {
+                new TaskFactory().StartNew(
+                    () => GetLinksAsync(subs, txtFilter.Text, bAllowNsfw.Checked, bOnlyNsfw.Checked, cts.Token),
+                    cts.Token).ContinueWith(x => StartDownload());
+            }
+            else
+            {
+                new TaskFactory().StartNew(
+                    () => GetLinksAsync(subs, txtFilter.Text, bAllowNsfw.Checked, bOnlyNsfw.Checked, cts.Token),
+                    cts.Token);
+            }
+
+
+        }
+
+        private async void GetLinksAsync(List<string> subs, string filter, bool allowNsfw, bool onlyNsfw, CancellationToken token)
+        {
+            try
+            {
+                var imgurLinks = await GetImgurLinksFromRedditSub(subs, filter, allowNsfw, onlyNsfw, token);
+                SetLinks(imgurLinks);
+                UpdateLinkTree(token);
+            }
+            catch (OperationCanceledException)
+            {
+                _links = new List<ImageLink>();
+                linkTree.Nodes.Clear();
+                OutputLine("Action Canceled by user.");
+            }
+            catch (Exception e)
+            {
+                OutputLine("Unexpected Error Occured: " + e.Message);
+            }
+            finally
+            {
+                SetCancelButtonEnable(false);
+            }
         }
 
         private void bOnlyNsfw_CheckedChanged(object sender, EventArgs e)
@@ -150,66 +209,63 @@ namespace RedditRip.UI
             return links;
         }
 
-        private async Task<List<ImageLink>> GetLinks()
+        private async Task<List<ImageLink>> GetImgurLinksFromRedditSub(IEnumerable<string> subReddits,  string filter, bool allowNsfw, bool onlyNsfw, CancellationToken token)
         {
-            var subReddits = new List<string>();
             var tasks = new List<Task>();
 
-            var ripper = new Core.RedditRip(txtFilter.Text, false, bAllowNsfw.Checked, bOnlyNsfw.Checked,
+            var ripper = new Core.RedditRip(filter, false, allowNsfw, onlyNsfw,
                 bVerbose.Checked);
 
             var reddit = new Reddit();
-            var links = new List<ImageLink>();
-
-            foreach (ListViewItem item in listSubReddits.Items)
-            {
-                subReddits.Add(item.Name);
-            }
-
+            var imageLinks = new List<ImageLink>();
+            
             if (subReddits.Any())
             {
-                tasks.AddRange(subReddits.Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Select(
-                        sub =>
-                            Task<List<ImageLink>>.Factory.StartNew(
-                                () => ripper.GetImgurLinksFromSubReddit(reddit, sub, txtDestination.Text))));
+                tasks.AddRange(
+                    subReddits.Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Select(sub => ripper.GetImgurLinksFromSubReddit(reddit, sub, String.Empty, token))); //TODO:: Refactor destination out of saving links
             }
 
             await Task.WhenAll(tasks.ToArray());
 
-            links = tasks.Cast<Task<List<ImageLink>>>()
-                .Aggregate(links, (current, task) => CombineLinkLists(task.Result, current));
+            imageLinks = tasks.Cast<Task<List<ImageLink>>>()
+                .Aggregate(imageLinks, (current, task) => CombineLinkLists(task.Result, current));
 
-            return links;
+            return imageLinks;
         }
 
-        private async void UpdateLinkTree()
+        private void UpdateLinkTree(CancellationToken token)
         {
-            lbLoadingLinks.Visible = true;
-            var nodes = new List<TreeNode>();
-            var subs = _links.Select(x => x.Post.SubredditName).Distinct().ToList();
-            OutputLine("Building nodes for Link Tree");
-            //var tasks = subs.Select(sub => new Task<TreeNode>(() => PopulateTreeWithLinks(sub))).ToList();
-            //OutputLine("Executing Tasks in parallel.", true);
-            //await Task.WhenAll(tasks.ToArray());
-            //nodes.AddRange(tasks.Select(task => task.Result));
-
-            //foreach (var sub in subs)
-            //{
-            //    linkTree.Nodes.Add(PopulateTreeWithLinks(sub));
-            //}
-            Tabs.SelectedIndex = Tabs.TabPages["log"].TabIndex;
-            Parallel.ForEach(subs, sub => nodes.Add(PopulateTreeWithLinks(sub)));
-            Tabs.SelectedIndex = Tabs.TabPages["links"].TabIndex;
-            foreach (var node in nodes.OrderBy(x => x.Text))
+            try
             {
-                linkTree.Nodes.Add(node);
+                var nodes = new List<TreeNode>();
+                var subs = _links.Select(x => x.Post.SubredditName).Distinct().ToList();
+                OutputLine("Building nodes for Link Tree");
+                Parallel.ForEach(subs, sub => nodes.Add(PopulateTreeWithLinks(sub, token)));
+                foreach (var node in nodes.OrderBy(x => x.Text))
+                {
+                    token.ThrowIfCancellationRequested();
+                    linkTree.Nodes.Add(node);
+                }
             }
-            btnDownload.Enabled = true;
-            lbLoadingLinks.Visible = false;
+            catch (OperationCanceledException)
+            {
+                _links = new List<ImageLink>();
+                linkTree.Nodes.Clear();
+                OutputLine("Action Canceled by user.");
+            }
+            catch (Exception e)
+            {
+                OutputLine("Unexpected Error Occured: " + e.Message);
+            }
+            finally
+            {
+                SetCancelButtonEnable(false);
+                SetDownloadButtonEnable(true);
+            }
         }
 
-        private TreeNode PopulateTreeWithLinks(string subName)
+        private TreeNode PopulateTreeWithLinks(string subName, CancellationToken token)
         {
             var subLinks = _links.Where(x => x.Post.SubredditName == subName);
             if (subLinks.Any())
@@ -220,18 +276,21 @@ namespace RedditRip.UI
 
                 foreach (var user in subUsers)
                 {
+                    token.ThrowIfCancellationRequested();
                     var posts = subLinks.Where(x => x.Post.AuthorName == user);
                     var userNode = new TreeNode() { Name = user, Text = user };
                     OutputLine($"Building nodes for {user}'s posts to {subName}.", true);
 
                     foreach (var post in posts.Select(x => x.Post.Title ?? x.Post.Id).Distinct())
                     {
+                        token.ThrowIfCancellationRequested();
                         var postLinks = posts.Where(x => x.Post.Title == post || x.Post.Id == post);
                         var postNode = new TreeNode() { Name = post, Text = post };
                         OutputLine($"Building nodes for {user}'s post: '{post}' on {subName}", true);
 
                         foreach (var link in postLinks)
                         {
+                            token.ThrowIfCancellationRequested();
                             var linkNode = new TreeNode() { Name = link.Url, Text = link.Url };
                             postNode.Nodes.Add(linkNode);
                         }
@@ -278,7 +337,8 @@ namespace RedditRip.UI
             };
             if (dialog.ShowDialog() == DialogResult.OK)
             {
-                Tabs.SelectedIndex = Tabs.TabPages["log"].TabIndex;
+                cts = new CancellationTokenSource();
+                Tabs.SelectedIndex = Tabs.TabPages[LogTabName].TabIndex;
                 using (var file = new StreamReader(dialog.FileName))
                 {
                     string line;
@@ -300,7 +360,8 @@ namespace RedditRip.UI
                                     _links.FirstOrDefault()?.Post.AuthorName, string.Empty).TrimEnd(Path.DirectorySeparatorChar);
 
                 txtDestination.Text = path ?? string.Empty;
-                UpdateLinkTree();
+                btnCancel.Enabled = true;
+                UpdateLinkTree(cts.Token);
             }
         }
 
@@ -324,7 +385,7 @@ namespace RedditRip.UI
                         foreach (var link in post.Value)
                         {
                             file.WriteLine(link.Post.Id + "|" + link.Post.SubredditName + "|" +
-                                       link.Post.AuthorName + "|" + $"{link.Filename}_{count.ToString("000")}" + "|" + link.Url);
+                                       link.Post.AuthorName + "|" + $"{link.Filename}" + "|" + link.Url);
                             count++;
                         }
                     }
@@ -332,37 +393,50 @@ namespace RedditRip.UI
             }
         }
 
-        private async void DownloadLinks()
+        private void DownloadLinks(CancellationToken token)
         {
-            var posts = _links.GroupBy(x => x.Post.Id).ToDictionary(x => x.Key, x => x.ToList());
-            var ripper = new Core.RedditRip(txtFilter.Text, false, bAllowNsfw.Checked, bOnlyNsfw.Checked,
-                bVerbose.Checked);
-            var tasks = new List<Task>();
-
-            foreach (var post in posts)
+            try
             {
-                var firstLink = post.Value.FirstOrDefault();
+                var posts = _links.GroupBy(x => x.Post.Id).ToDictionary(x => x.Key, x => x.ToList());
+                var ripper = new Core.RedditRip(txtFilter.Text, false, bAllowNsfw.Checked, bOnlyNsfw.Checked,
+                    bVerbose.Checked);
+                var tasks = new List<Task>();
 
-                if (firstLink?.Post != null)
+                foreach (var post in posts)
                 {
-                    var detailsFilepath = Path.GetDirectoryName(firstLink.Filename);
-                    var detailsFilename = detailsFilepath + "\\postDetails.txt";
-                    var details = firstLink.GetPostDetails(post);
+                    token.ThrowIfCancellationRequested();
+                    var downloadPostTask =
+                        ripper.DownloadPost(post, txtDestination.Text, token)
+                            .ContinueWith(antecedent => OutputLine("Finished downloading post: " + post.Key), token);
 
-                    Directory.CreateDirectory(detailsFilepath);
-                    File.WriteAllText(detailsFilename, details);
+                    tasks.Add(downloadPostTask);
                 }
 
-                tasks.Add(Task.Factory.StartNew(() => ripper.DownloadPost(post, txtDestination.Text)));
-            }
+                var downloadBatches = Batch(tasks, 10).ToList();
+                var batchCount = downloadBatches.Count;
+                Task[] curretTasks = null;
+                for (var i = 0; i < batchCount; i++)
+                {
+                    var batch = downloadBatches.First();
+                    curretTasks = batch.ToArray();
+                    Task.WaitAll(curretTasks);
+                    downloadBatches.Remove(batch);
+                }
 
-            var downloadBatches = Batch(tasks, 10);
-            foreach (var batch in downloadBatches)
+                if (curretTasks.ToList().All(x => x.IsCompleted)) OutputLine("Finished downloading.");
+            }
+            catch (OperationCanceledException)
             {
-                await Task.WhenAll(batch.ToArray());
+                OutputLine("Downloads canceled by user.");
             }
-
-            OutputLine("Finished downloading.");
+            catch (Exception e)
+            {
+                OutputLine("Unexpected Error Occured: " + e.Message);
+            }
+            finally
+            {
+                SetCancelButtonEnable(false);
+            }
         }
 
         public static IEnumerable<IEnumerable<Task>> Batch<Task>(IEnumerable<Task> source, int size)
@@ -388,5 +462,71 @@ namespace RedditRip.UI
             if (bucket != null && count > 0)
                 yield return bucket.Take(count);
         }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            cts?.Cancel();
+            base.OnFormClosing(e);
+        }
+
+        private void btnCancel_Click(object sender, EventArgs e)
+        {
+            cts?.Cancel();
+        }
+
+        public void SetCancelButtonEnable(bool value)
+        {
+            try
+            {
+                if (InvokeRequired)
+                {
+                    this.Invoke(new Action<bool>(SetCancelButtonEnable), new object[] { value });
+                    return;
+                }
+
+                btnCancel.Enabled = value;
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        public void SetDownloadButtonEnable(bool value)
+        {
+            try
+            {
+                if (InvokeRequired)
+                {
+                    this.Invoke(new Action<bool>(SetDownloadButtonEnable), new object[] { value });
+                    return;
+                }
+
+                btnDownload.Enabled = value;
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        public void SetLinks(List<ImageLink> value)
+        {
+            try
+            {
+                if (InvokeRequired)
+                {
+                    this.Invoke(new Action<List<ImageLink>>(SetLinks), new object[] { value });
+                    return;
+                }
+
+                _links = value;
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
     }
 }

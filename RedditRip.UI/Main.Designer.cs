@@ -28,12 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.Tabs = new System.Windows.Forms.TabControl();
-            this.links = new System.Windows.Forms.TabPage();
-            this.lbLoadingLinks = new System.Windows.Forms.Label();
-            this.linkTree = new System.Windows.Forms.TreeView();
-            this.Log = new System.Windows.Forms.TabPage();
-            this.txtLog = new System.Windows.Forms.TextBox();
             this.txtSubReddit = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
             this.btnAddSub = new System.Windows.Forms.Button();
@@ -56,81 +50,19 @@
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.importToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportLinksToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.Tabs.SuspendLayout();
-            this.links.SuspendLayout();
-            this.Log.SuspendLayout();
+            this.Tabs = new System.Windows.Forms.TabControl();
+            this.links = new System.Windows.Forms.TabPage();
+            this.logTab = new System.Windows.Forms.TabPage();
+            this.linkTree = new System.Windows.Forms.TreeView();
+            this.txtLog = new System.Windows.Forms.TextBox();
+            this.btnCancel = new System.Windows.Forms.Button();
             this.groupBox2.SuspendLayout();
             this.groupBox1.SuspendLayout();
             this.menuStrip1.SuspendLayout();
+            this.Tabs.SuspendLayout();
+            this.links.SuspendLayout();
+            this.logTab.SuspendLayout();
             this.SuspendLayout();
-            // 
-            // Tabs
-            // 
-            this.Tabs.Controls.Add(this.links);
-            this.Tabs.Controls.Add(this.Log);
-            this.Tabs.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.Tabs.Location = new System.Drawing.Point(0, 289);
-            this.Tabs.Name = "Tabs";
-            this.Tabs.SelectedIndex = 0;
-            this.Tabs.Size = new System.Drawing.Size(807, 462);
-            this.Tabs.TabIndex = 1;
-            // 
-            // links
-            // 
-            this.links.Controls.Add(this.lbLoadingLinks);
-            this.links.Controls.Add(this.linkTree);
-            this.links.Location = new System.Drawing.Point(4, 22);
-            this.links.Name = "links";
-            this.links.Padding = new System.Windows.Forms.Padding(3);
-            this.links.Size = new System.Drawing.Size(799, 436);
-            this.links.TabIndex = 0;
-            this.links.Text = "Links";
-            this.links.UseVisualStyleBackColor = true;
-            // 
-            // lbLoadingLinks
-            // 
-            this.lbLoadingLinks.AutoSize = true;
-            this.lbLoadingLinks.Font = new System.Drawing.Font("Microsoft Sans Serif", 32F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.lbLoadingLinks.Location = new System.Drawing.Point(220, 135);
-            this.lbLoadingLinks.Name = "lbLoadingLinks";
-            this.lbLoadingLinks.Size = new System.Drawing.Size(325, 51);
-            this.lbLoadingLinks.TabIndex = 3;
-            this.lbLoadingLinks.Text = "Loading Links...";
-            this.lbLoadingLinks.TextAlign = System.Drawing.ContentAlignment.TopCenter;
-            this.lbLoadingLinks.Visible = false;
-            // 
-            // linkTree
-            // 
-            this.linkTree.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.linkTree.Location = new System.Drawing.Point(3, 3);
-            this.linkTree.Name = "linkTree";
-            this.linkTree.Size = new System.Drawing.Size(793, 430);
-            this.linkTree.TabIndex = 0;
-            // 
-            // Log
-            // 
-            this.Log.BackColor = System.Drawing.SystemColors.ControlText;
-            this.Log.Controls.Add(this.txtLog);
-            this.Log.Location = new System.Drawing.Point(4, 22);
-            this.Log.Name = "Log";
-            this.Log.Padding = new System.Windows.Forms.Padding(10, 0, 0, 0);
-            this.Log.Size = new System.Drawing.Size(799, 436);
-            this.Log.TabIndex = 2;
-            this.Log.Text = "Log";
-            // 
-            // txtLog
-            // 
-            this.txtLog.BackColor = System.Drawing.SystemColors.ControlText;
-            this.txtLog.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            this.txtLog.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.txtLog.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.txtLog.ForeColor = System.Drawing.SystemColors.Info;
-            this.txtLog.Location = new System.Drawing.Point(10, 0);
-            this.txtLog.Multiline = true;
-            this.txtLog.Name = "txtLog";
-            this.txtLog.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtLog.Size = new System.Drawing.Size(789, 436);
-            this.txtLog.TabIndex = 0;
             // 
             // txtSubReddit
             // 
@@ -218,7 +150,7 @@
             // btnGetLinks
             // 
             this.btnGetLinks.Enabled = false;
-            this.btnGetLinks.Location = new System.Drawing.Point(578, 196);
+            this.btnGetLinks.Location = new System.Drawing.Point(504, 191);
             this.btnGetLinks.Name = "btnGetLinks";
             this.btnGetLinks.Size = new System.Drawing.Size(111, 23);
             this.btnGetLinks.TabIndex = 9;
@@ -229,7 +161,7 @@
             // btnDownload
             // 
             this.btnDownload.Enabled = false;
-            this.btnDownload.Location = new System.Drawing.Point(695, 196);
+            this.btnDownload.Location = new System.Drawing.Point(621, 191);
             this.btnDownload.Name = "btnDownload";
             this.btnDownload.Size = new System.Drawing.Size(75, 23);
             this.btnDownload.TabIndex = 10;
@@ -275,7 +207,7 @@
             // 
             this.txtFilter.Location = new System.Drawing.Point(82, 146);
             this.txtFilter.Name = "txtFilter";
-            this.txtFilter.Size = new System.Drawing.Size(188, 20);
+            this.txtFilter.Size = new System.Drawing.Size(189, 20);
             this.txtFilter.TabIndex = 12;
             // 
             // label3
@@ -289,6 +221,7 @@
             // 
             // groupBox1
             // 
+            this.groupBox1.Controls.Add(this.btnCancel);
             this.groupBox1.Controls.Add(this.bVerbose);
             this.groupBox1.Controls.Add(this.label3);
             this.groupBox1.Controls.Add(this.txtFilter);
@@ -314,9 +247,7 @@
             // bVerbose
             // 
             this.bVerbose.AutoSize = true;
-            this.bVerbose.Checked = true;
-            this.bVerbose.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.bVerbose.Location = new System.Drawing.Point(483, 200);
+            this.bVerbose.Location = new System.Drawing.Point(409, 195);
             this.bVerbose.Name = "bVerbose";
             this.bVerbose.Size = new System.Drawing.Size(91, 17);
             this.bVerbose.TabIndex = 14;
@@ -345,16 +276,81 @@
             // importToolStripMenuItem
             // 
             this.importToolStripMenuItem.Name = "importToolStripMenuItem";
-            this.importToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.importToolStripMenuItem.Size = new System.Drawing.Size(140, 22);
             this.importToolStripMenuItem.Text = "Import Links";
             this.importToolStripMenuItem.Click += new System.EventHandler(this.importToolStripMenuItem_Click);
             // 
             // exportLinksToolStripMenuItem
             // 
             this.exportLinksToolStripMenuItem.Name = "exportLinksToolStripMenuItem";
-            this.exportLinksToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.exportLinksToolStripMenuItem.Size = new System.Drawing.Size(140, 22);
             this.exportLinksToolStripMenuItem.Text = "Export Links";
             this.exportLinksToolStripMenuItem.Click += new System.EventHandler(this.exportLinksToolStripMenuItem_Click);
+            // 
+            // Tabs
+            // 
+            this.Tabs.Controls.Add(this.links);
+            this.Tabs.Controls.Add(this.logTab);
+            this.Tabs.Location = new System.Drawing.Point(0, 259);
+            this.Tabs.Name = "Tabs";
+            this.Tabs.SelectedIndex = 0;
+            this.Tabs.Size = new System.Drawing.Size(807, 492);
+            this.Tabs.TabIndex = 3;
+            // 
+            // links
+            // 
+            this.links.Controls.Add(this.linkTree);
+            this.links.Location = new System.Drawing.Point(4, 22);
+            this.links.Name = "links";
+            this.links.Padding = new System.Windows.Forms.Padding(3);
+            this.links.Size = new System.Drawing.Size(593, 238);
+            this.links.TabIndex = 0;
+            this.links.Text = "Links";
+            this.links.UseVisualStyleBackColor = true;
+            // 
+            // logTab
+            // 
+            this.logTab.Controls.Add(this.txtLog);
+            this.logTab.Location = new System.Drawing.Point(4, 22);
+            this.logTab.Name = "logTab";
+            this.logTab.Padding = new System.Windows.Forms.Padding(3);
+            this.logTab.Size = new System.Drawing.Size(799, 466);
+            this.logTab.TabIndex = 1;
+            this.logTab.Text = "Log";
+            this.logTab.UseVisualStyleBackColor = true;
+            // 
+            // linkTree
+            // 
+            this.linkTree.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.linkTree.Location = new System.Drawing.Point(3, 3);
+            this.linkTree.Name = "linkTree";
+            this.linkTree.Size = new System.Drawing.Size(587, 232);
+            this.linkTree.TabIndex = 1;
+            // 
+            // txtLog
+            // 
+            this.txtLog.BackColor = System.Drawing.SystemColors.ControlText;
+            this.txtLog.BorderStyle = System.Windows.Forms.BorderStyle.None;
+            this.txtLog.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.txtLog.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.txtLog.ForeColor = System.Drawing.SystemColors.Info;
+            this.txtLog.Location = new System.Drawing.Point(3, 3);
+            this.txtLog.Multiline = true;
+            this.txtLog.Name = "txtLog";
+            this.txtLog.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+            this.txtLog.Size = new System.Drawing.Size(793, 460);
+            this.txtLog.TabIndex = 1;
+            // 
+            // btnCancel
+            // 
+            this.btnCancel.Enabled = false;
+            this.btnCancel.Location = new System.Drawing.Point(702, 191);
+            this.btnCancel.Name = "btnCancel";
+            this.btnCancel.Size = new System.Drawing.Size(75, 23);
+            this.btnCancel.TabIndex = 15;
+            this.btnCancel.Text = "Cancel";
+            this.btnCancel.UseVisualStyleBackColor = true;
+            this.btnCancel.Click += new System.EventHandler(this.btnCancel_Click);
             // 
             // Main
             // 
@@ -368,28 +364,22 @@
             this.Name = "Main";
             this.Text = "RedditRip";
             this.Load += new System.EventHandler(this.Main_Load);
-            this.Tabs.ResumeLayout(false);
-            this.links.ResumeLayout(false);
-            this.links.PerformLayout();
-            this.Log.ResumeLayout(false);
-            this.Log.PerformLayout();
             this.groupBox2.ResumeLayout(false);
             this.groupBox2.PerformLayout();
             this.groupBox1.ResumeLayout(false);
             this.groupBox1.PerformLayout();
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
+            this.Tabs.ResumeLayout(false);
+            this.links.ResumeLayout(false);
+            this.logTab.ResumeLayout(false);
+            this.logTab.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
         }
 
         #endregion
-        private System.Windows.Forms.TabControl Tabs;
-        private System.Windows.Forms.TabPage links;
-        private System.Windows.Forms.TreeView linkTree;
-        private System.Windows.Forms.TabPage Log;
-        private System.Windows.Forms.TextBox txtLog;
         private System.Windows.Forms.TextBox txtSubReddit;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Button btnAddSub;
@@ -411,8 +401,13 @@
         private System.Windows.Forms.MenuStrip menuStrip1;
         private System.Windows.Forms.ToolStripMenuItem fileToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem importToolStripMenuItem;
-        private System.Windows.Forms.Label lbLoadingLinks;
         private System.Windows.Forms.ToolStripMenuItem exportLinksToolStripMenuItem;
+        private System.Windows.Forms.TabControl Tabs;
+        private System.Windows.Forms.TabPage links;
+        private System.Windows.Forms.TreeView linkTree;
+        private System.Windows.Forms.TabPage logTab;
+        private System.Windows.Forms.TextBox txtLog;
+        private System.Windows.Forms.Button btnCancel;
     }
 }
 

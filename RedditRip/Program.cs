@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RedditRip
@@ -117,15 +118,11 @@ namespace RedditRip
                         {
                             tasks.AddRange(subReddits.Where(x => !string.IsNullOrWhiteSpace(x))
                                 .Select(
-                                    sub =>
-                                        Task<List<ImageLink>>.Factory.StartNew(
-                                            () => ripper.GetImgurLinksFromSubReddit(reddit, sub, destination))));
+                                    sub => ripper.GetImgurLinksFromSubReddit(reddit, sub, destination, new CancellationToken())));
                         }
                         else
                         {
-                            tasks.Add(
-                                Task<List<ImageLink>>.Factory.StartNew(
-                                    () => ripper.GetImgurLinksFromSubReddit(reddit, null, destination)));
+                            tasks.Add(ripper.GetImgurLinksFromSubReddit(reddit, null, destination, new CancellationToken()));
                         }
 
                         Task.WaitAll(tasks.ToArray());
@@ -142,34 +139,23 @@ namespace RedditRip
                     {
                         foreach (var post in posts)
                         {
-                            var firstLink = post.Value.FirstOrDefault();
+                            var downloadPostTask =
+                                ripper.DownloadPost(post, _options.Destination, new CancellationToken())
+                                    .ContinueWith(antecedent => OutputLine("Finished downloading post: " + post.Key));
 
-                            if (firstLink?.Post != null && string.IsNullOrWhiteSpace(_options.ImportFrom))
-                            {
-                                var detailsFilepath = Path.GetDirectoryName(firstLink?.Filename);
-                                var detailsFilename = detailsFilepath + "\\postDetails.txt";
-                                var details = firstLink.GetPostDetails(post);
-
-                                Directory.CreateDirectory(detailsFilepath);
-                                File.WriteAllText(detailsFilename, details);
-                            }
-                            var count = 1;
-                            foreach (var imageLink in post.Value)
-                            {
-                                tasks.Add(
-                                    Task.Factory.StartNew(
-                                        () => ripper.DownloadLink(imageLink, imageLink.Filename, count)));
-                                count++;
-                            }
-
-                            if (tasks.Count() < 10) continue;
-
-                            Task.WaitAll(tasks.ToArray());
-                            tasks = new List<Task>();
+                            tasks.Add(downloadPostTask);
                         }
 
-                        if (tasks.Any())
-                            Task.WaitAll(tasks.ToArray());
+                        var downloadBatches = Batch(tasks, 10).ToList();
+                        var batchCount = downloadBatches.Count;
+                        for (var i = 0; i < batchCount; i++)
+                        {
+                            var batch = downloadBatches.First();
+                            Task.WaitAll(batch.ToArray());
+                            downloadBatches.Remove(batch);
+                        }
+
+                        OutputLine("Finished downloading.");
                     }
                     else
                     {
@@ -215,6 +201,30 @@ namespace RedditRip
             }
 
             return links;
+        }
+
+        public static IEnumerable<IEnumerable<Task>> Batch<Task>(IEnumerable<Task> source, int size)
+        {
+            Task[] bucket = null;
+            var count = 0;
+
+            foreach (var item in source)
+            {
+                if (bucket == null)
+                    bucket = new Task[size];
+
+                bucket[count++] = item;
+                if (count != size)
+                    continue;
+
+                yield return bucket;
+
+                bucket = null;
+                count = 0;
+            }
+
+            if (bucket != null && count > 0)
+                yield return bucket.Take(count);
         }
     }
 }

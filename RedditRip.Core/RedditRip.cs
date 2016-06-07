@@ -13,6 +13,7 @@ using System.Runtime.Serialization;
 using System.Security.Policy;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using log4net.Core;
@@ -23,7 +24,6 @@ namespace RedditRip.Core
     {
         public ILog Log { get; set; }
 
-        private int _countAllPosts;
         private int _perSubThreadLimit = 5;
         private const int PostQueryErrorLimit = 6;
         private readonly bool _allAuthorsPosts;
@@ -45,8 +45,9 @@ namespace RedditRip.Core
             Log = LogManager.GetLogger(Assembly.GetEntryAssembly().ManifestModule.Name);
         }
 
-        public List<ImageLink> GetImgurLinksFromSubReddit(Reddit reddit, string sub, string outputPath)
+        public async Task<List<ImageLink>> GetImgurLinksFromSubReddit(Reddit reddit, string sub, string outputPath, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             Subreddit subreddit = null;
             var links = new List<ImageLink>();
 
@@ -64,22 +65,21 @@ namespace RedditRip.Core
                 }
             }
 
-            _countAllPosts = 0;
-
             if (_filter == null) _filter = string.Empty;
 
             var search = !string.IsNullOrWhiteSpace(sub)
                 ? subreddit?.Search(_filter)
                 : reddit.Search<Post>(_filter);
 
+            token.ThrowIfCancellationRequested();
             var listings = search?.GetEnumerator();
 
-            links = CombineLinkLists(GetImagesFromListing(reddit, listings, outputPath), links);
+            links = CombineLinkLists(await GetImagesFromListing(reddit, listings, outputPath, token), links);
 
             return links;
         }
 
-        private List<ImageLink> GetImagesFromListing(Reddit reddit, IEnumerator<Post> listing, string outputPath)
+        private async Task<List<ImageLink>> GetImagesFromListing(Reddit reddit, IEnumerator<Post> listing, string outputPath, CancellationToken token)
         {
             var erroCount = 0;
             var posts = new List<Post>();
@@ -90,12 +90,14 @@ namespace RedditRip.Core
             {
                 while (listing.MoveNext())
                 {
+                    token.ThrowIfCancellationRequested();
                     Console.WriteLine();
                     for (var i = 0; i < _perSubThreadLimit; i++)
                     {
                         if (_allAuthorsPosts)
                         {
-                            if (!users.Contains(listing.Current.AuthorName) && !processedUsers.Contains(listing.Current.AuthorName))
+                            if (!users.Contains(listing.Current.AuthorName) &&
+                                !processedUsers.Contains(listing.Current.AuthorName))
                             {
                                 OutputLine($"Adding user to batch: {listing.Current.AuthorName}", true);
                                 users.Add(listing.Current.AuthorName);
@@ -113,7 +115,6 @@ namespace RedditRip.Core
                             }
 
                             posts.Add(listing.Current);
-                            _countAllPosts++;
                         }
 
                         if (!listing.MoveNext())
@@ -122,6 +123,7 @@ namespace RedditRip.Core
 
                     foreach (var user in users)
                     {
+                        token.ThrowIfCancellationRequested();
                         OutputLine($"Getting all posts for user: {user}", true);
                         var userPosts =
                             reddit.GetUser(user).Posts.OrderByDescending(post => post.Score)
@@ -135,10 +137,11 @@ namespace RedditRip.Core
 
                         foreach (var userPost in userPosts)
                         {
-                            if (posts.Exists(x => x.Url == userPost.Url) || links.Exists(x => x.Url == userPost.Url.ToString())) continue;
+                            token.ThrowIfCancellationRequested();
+                            if (posts.Exists(x => x.Url == userPost.Url) ||
+                                links.Exists(x => x.Url == userPost.Url.ToString())) continue;
 
                             posts.Add(userPost);
-                            _countAllPosts++;
                         }
 
                         processedUsers.Add(user);
@@ -146,7 +149,7 @@ namespace RedditRip.Core
 
                     users = new HashSet<string>();
                     OutputLine($"Batch returned: {posts.Count} posts.", true);
-
+                    var subName = string.Empty;
                     for (var i = 0; i < posts.Count; i = i + _perSubThreadLimit)
                     {
                         var tasks = new List<Task>();
@@ -157,14 +160,17 @@ namespace RedditRip.Core
                                 break;
 
                             var post = posts[i + j];
-                            tasks.Add(Task<List<ImageLink>>.Factory.StartNew(
-                                () => GetImgurImageOrAlbumFromUrl(post, outputPath)));
+                            tasks.Add(GetImgurImageOrAlbumFromUrl(post, outputPath, token));
                         }
                         Task.WaitAll(tasks.ToArray());
 
                         links = tasks.Cast<Task<List<ImageLink>>>()
                             .Aggregate(links, (current, task) => CombineLinkLists(task.Result, current));
-                        OutputLine($"Total Links found: {links.Count()}");
+
+                        if (string.IsNullOrWhiteSpace(subName))
+                            subName = links.First()?.Post.SubredditName;
+
+                        OutputLine($"Total Links found in {subName}: {links.Count()}");
                     }
 
                     posts = new List<Post>();
@@ -176,16 +182,17 @@ namespace RedditRip.Core
             }
             catch (Exception e)
             {
+                if (e is OperationCanceledException || e is AggregateException)
+                {
+                    throw new OperationCanceledException();
+                }
+
                 OutputLine($"Error: {e.Message}");
                 erroCount++;
                 if (erroCount > PostQueryErrorLimit)
                 {
                     throw;
                 }
-            }
-            finally
-            {
-                OutputLine($"Running Total: {_countAllPosts} posts processed.");
             }
 
             return links;
@@ -204,8 +211,9 @@ namespace RedditRip.Core
             return links;
         }
 
-        private List<ImageLink> GetImgurImageOrAlbumFromUrl(Post post, string outputPath)
+        private async Task<List<ImageLink>> GetImgurImageOrAlbumFromUrl(Post post, string outputPath, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             var links = new List<ImageLink>();
 
             OutputLine($"\tGetting links from post: {post.Title}", true);
@@ -235,13 +243,16 @@ namespace RedditRip.Core
                 return links;
             }
 
-            string htmlString;
-            if (!GetHtml(url, out htmlString)) return links;
+            string htmlString = await GetHtml(url, token);
+            if (string.IsNullOrWhiteSpace(htmlString)) return links;
 
             var caroselAlbum = htmlString.Contains(@"data-layout=""h""");
 
             if (caroselAlbum)
-                if (!GetHtml(url + "/all", out htmlString)) return links;
+            {
+                htmlString = await GetHtml(url + "/all", token);
+                if (string.IsNullOrWhiteSpace(htmlString)) return links;
+            }
 
             var gridAlbum = htmlString.Contains(@"data-layout=""g""");
 
@@ -256,6 +267,7 @@ namespace RedditRip.Core
 
             foreach (Match m in matchImageLinks)
             {
+                token.ThrowIfCancellationRequested();
                 var imgurl = m.Groups[1].Value.Replace(".gifv", ".gif");
 
                 if (!imgurl.Contains("imgur.com")) continue;
@@ -271,29 +283,31 @@ namespace RedditRip.Core
             return links;
         }
 
-        private bool GetHtml(string url, out string htmlString)
+        private async Task<string> GetHtml(string url, CancellationToken token)
         {
-            htmlString = string.Empty;
+            var htmlString = string.Empty;
 
             try
             {
                 using (var wchtml = new WebClient())
                 {
-                    htmlString = wchtml.DownloadString(url);
+                    htmlString = await wchtml.DownloadStringTaskAsync(new Uri(url));
                 }
             }
             catch (Exception e)
             {
                 OutputLine($"\tError loading album {url}: {e.Message}", true);
-                return false;
+                return string.Empty;
             }
-            return true;
+
+            return htmlString;
         }
 
-        public async void DownloadPost(KeyValuePair<string, List<ImageLink>> post, string destination)
+        public async Task DownloadPost(KeyValuePair<string, List<ImageLink>> post, string destination, CancellationToken token)
         {
             if (post.Value.Any() && !string.IsNullOrWhiteSpace(destination))
             {
+                var details = post.Value.FirstOrDefault().GetPostDetails(post);
                 var subName = post.Value.FirstOrDefault().Post.SubredditName;
                 var userName = post.Value.FirstOrDefault().Post.AuthorName;
                 var postId = post.Key;
@@ -309,109 +323,91 @@ namespace RedditRip.Core
 
                 if (existsingFiles.Count() >= post.Value.Count) return;
 
-                var downloads = new Dictionary<string, string>();
                 var count = 0;
                 foreach (var imageLink in post.Value)
                 {
+                    token.ThrowIfCancellationRequested();
                     var uri = new Uri(imageLink.Url);
                     var domain = uri.DnsSafeHost;
                     if (string.IsNullOrWhiteSpace(domain) || imageLink.Url.Contains("removed.png")) continue;
 
-                    var link = imageLink.Url.StartsWith("http://")
-                    ? imageLink.Url
-                    : "http://" +
-                      imageLink.Url.Substring(imageLink.Url.IndexOf(domain, StringComparison.Ordinal));
-
-                    link = link.Replace(".gifv", ".gif");
-
-                    var extention = GetExtention(link);
+                    imageLink.Url = imageLink.Url.Replace(".gifv", ".gif");
+                    var extention = GetExtention(imageLink.Url);
 
                     count++;
                     var fullFilePath = filePath + Path.DirectorySeparatorChar + fileNameBase + "_" +
                                        count.ToString("0000") + extention;
 
                     if (!existsingFiles.Contains(fullFilePath))
-                        await SaveFile(imageLink, fullFilePath, extention, link);
+                    {
+                        var retryCount = 0;
+                        while (!await SaveFile(imageLink, fullFilePath, extention))
+                        {
+                            retryCount++;
+                            if (retryCount >= 5) break;
+                        }
+                    }
                 }
+
+                var detailsFilename = filePath + Path.DirectorySeparatorChar + "postDetails.txt";
+                File.WriteAllText(detailsFilename, details);
             }
         }
 
-        public async void DownloadLink(ImageLink imageLink, string filenameBase, int filenameNumber)
+        private async Task<bool> SaveFile(ImageLink imageLink, string filename, string extention)
         {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(filenameBase)) return;
-                var filepath = Path.GetDirectoryName(filenameBase);
-                if (string.IsNullOrWhiteSpace(filepath)) return;
-
-                var dir = new DirectoryInfo(filepath);
-                dir.Create();
-
-                if (Directory.GetFiles(filepath, $"*{imageLink.Post.Id}*", SearchOption.TopDirectoryOnly).Any())
-                {
-                    OutputLine(
-                        $"Skipping Post, already downloaded: {"https://reddit.com/r/" + imageLink.Post.SubredditName + imageLink.Post.Id} {imageLink.Post.Url}",
-                        true);
-                    return;
-                }
-
-                var uri = new Uri(imageLink.Url);
-                var domain = uri.DnsSafeHost;
-
-                // if the image was removed and was linked directly, removed.png is served up instead
-                if (string.IsNullOrWhiteSpace(domain) || imageLink.Url.Contains("removed.png"))
-                    return;
-
-                var link = imageLink.Url.StartsWith("http://")
-                    ? imageLink.Url
-                    : "http://" +
-                      imageLink.Url.Substring(imageLink.Url.IndexOf(domain, StringComparison.Ordinal));
-
-                link = link.Replace(".gifv", ".gif");
-
-                var extention = GetExtention(link);
-
-                var filename = filenameBase + "_" + filenameNumber.ToString("0000") + extention;
-                filename = filename.Trim('.');
-
-                await SaveFile(imageLink, filename, extention, link);
-            }
-            catch (Exception e)
-            {
-                OutputLine($"Failed to download link {imageLink.Url}: {e.Message}", true);
-            }
-        }
-
-        private async Task SaveFile(ImageLink imageLink, string filename, string extention, string link)
-        {
-            var tempFilename = Path.GetTempPath() + Path.GetRandomFileName() + extention;
             using (var wc = new WebClient())
             {
-                await wc.DownloadFileTaskAsync(new Uri(link), tempFilename);
-                OutputLine($"Downloaded: {imageLink.Url} to {filename}", true);
-
-                using (var image = Image.FromFile(tempFilename))
+                try
                 {
-                    //TODO:: refactor to remove code smell - http://www.exiv2.org/tags.html
+                    var uri = new Uri(imageLink.Url);
+                    var domain = uri.DnsSafeHost;
 
-                    //XPTitle
-                    SetImageProperty(image, 40091, Encoding.Unicode.GetBytes(imageLink.Post.Title + char.MinValue));
-                    //XPComment
-                    SetImageProperty(image, 40092, Encoding.Unicode.GetBytes(link + char.MinValue));
-                    //XPAuthor
-                    SetImageProperty(image, 40093, Encoding.Unicode.GetBytes(imageLink.Post.AuthorName + char.MinValue));
-                    //XPKeywords
-                    SetImageProperty(image, 40094,
-                        Encoding.Unicode.GetBytes(imageLink.Post.SubredditName + ";" + imageLink.Post.AuthorName +
-                                                  ";" + imageLink.Post.AuthorFlairText + ";" + imageLink.Post.Domain +
-                                                  char.MinValue));
-                    //Save to desination
-                    image.Save(filename);
+                    var link = imageLink.Url.StartsWith("http://")
+                        ? imageLink.Url
+                        : "http://" +
+                          imageLink.Url.Substring(imageLink.Url.IndexOf(domain, StringComparison.Ordinal));
+
+                    var tempFilename = Path.GetTempPath() + Path.GetRandomFileName() + extention;
+
+                    await wc.DownloadFileTaskAsync(new Uri(link), tempFilename);
+
+                    using (var image = Image.FromFile(tempFilename)) //TODO:: Refactor as per http://stackoverflow.com/a/2216338
+                    {
+                        //TODO:: refactor to remove code smell - http://www.exiv2.org/tags.html
+
+                        //XPTitle
+                        SetImageProperty(image, 40091, Encoding.Unicode.GetBytes(imageLink.Post.Title + char.MinValue));
+                        //XPComment
+                        SetImageProperty(image, 40092, Encoding.Unicode.GetBytes(link + char.MinValue));
+                        //XPAuthor
+                        SetImageProperty(image, 40093,
+                            Encoding.Unicode.GetBytes(imageLink.Post.AuthorName + char.MinValue));
+                        //XPKeywords
+                        SetImageProperty(image, 40094,
+                            Encoding.Unicode.GetBytes(imageLink.Post.SubredditName + ";" + imageLink.Post.AuthorName +
+                                                      ";" + imageLink.Post.AuthorFlairText + ";" + imageLink.Post.Domain +
+                                                      char.MinValue));
+                        //Save to desination
+                        image.Save(filename);
+                    }
+
+                    //Delete temp file after web client has been disposed (makes sure no handles to file left over)
+                    File.Delete(tempFilename);
+                    OutputLine($"Downloaded: {imageLink.Url} to {filename}", true);
                 }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    OutputLine($"Error: {imageLink.Url} to {filename}", true);
+                    OutputLine(e.Message, true);
+                    return false;
+                }
+                return true;
             }
-
-            //Delete temp file after web client has been disposed (makes sure no handles to file left over)
-            File.Delete(tempFilename);
         }
 
         private static void SetImageProperty(Image image, int propertyId, byte[] value)
