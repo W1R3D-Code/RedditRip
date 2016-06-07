@@ -10,7 +10,7 @@ Prerequisites: .NET 4.5+ or Mono 4.05+ (Untested)
 
 ### How? ###
 
-* Compile the code or download a [release](https://github.com/W1R3D-Code/RedditRip/releases) and unzip it
+* Compile the code or download a [**release**](https://github.com/W1R3D-Code/RedditRip/releases) and unzip it
 * Open a command prompt and change directory RedditRip.exe is in
 * Run RedditRip.exe from the commandline with the correct arguments
   * e.g. **RedditRip.exe -s "wallpapers,MinimalWallpaper" -d C:\Reddit\img\**
@@ -30,6 +30,7 @@ Prerequisites: .NET 4.5+ or Mono 4.05+ (Untested)
 |:-------|:-------|:---------|
 |**-s, --subreddits**		|**Required**	|**Subreddits to download** Imgur images from in a comma separated list|
 |**-d, --destination**		|**Required**	|**Destination Directory** for downloads|
+|-f, --filter |Optional |Filter to apply to post Titles, supports Regular Expressions and is case insensitive|
 |-u, --username			|Optional	|Reddit username|
 |-p, --password			|Optional	|Reddit password|
 |-n, --nsfw				|(Default: True) |	Allow NSFW Posts|
