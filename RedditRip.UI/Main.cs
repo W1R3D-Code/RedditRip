@@ -21,7 +21,7 @@ namespace RedditRip.UI
         private Task downloads { get; set; }
         private CancellationTokenSource cts;
 
-        private const string LogTabName = "logTab";
+        private const int LogTabIndex = 1;
         private static readonly log4net.ILog log =
             log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
@@ -36,20 +36,19 @@ namespace RedditRip.UI
         private void Main_Load(object sender, EventArgs e)
         {
             txtLog.Text = Environment.NewLine;
-            Tabs.SelectedIndex = Tabs.TabPages[LogTabName].TabIndex;
+            Tabs.SelectedIndex = LogTabIndex;
         }
         private void btnDownload_Click(object sender, EventArgs e)
         {
-            Tabs.SelectedIndex = Tabs.TabPages[LogTabName].TabIndex;
+            Tabs.SelectedIndex = LogTabIndex;
             StartDownload();
         }
 
         private void StartDownload()
         {
             cts = new CancellationTokenSource();
-            if (string.IsNullOrWhiteSpace(txtDestination.Text))
-                SetDestination();
-
+            SetDestination();
+            
             if (!string.IsNullOrWhiteSpace(txtDestination.Text))
             {
                 txtDestination.Enabled = false;
@@ -58,10 +57,8 @@ namespace RedditRip.UI
                 OutputLine("Starting downloads....");
                 downloads = new TaskFactory().StartNew(() => DownloadLinks(cts.Token), cts.Token);
 
-                btnCancel.Enabled = true;
-
-                txtDestination.Enabled = true;
-                btnGetLinks.Enabled = true;
+                SetCancelButtonEnable(true);
+                SetDownloadButtonEnable(true);
             }
         }
 
@@ -111,13 +108,14 @@ namespace RedditRip.UI
 
         private void SetDestination()
         {
-            var dialog = new FolderBrowserDialog();
-
-            var result = dialog.ShowDialog();
-
-            if (!string.IsNullOrWhiteSpace(dialog.SelectedPath))
+            if (string.IsNullOrWhiteSpace(txtDestination.Text) || !Directory.Exists(txtDestination.Text))
             {
-                txtDestination.Text = dialog.SelectedPath.ToString();
+                var dialog = new FolderBrowserDialog();
+                var result = dialog.ShowDialog();
+                if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.SelectedPath))
+                {
+                    txtDestination.Text = dialog.SelectedPath;
+                }
             }
         }
 
@@ -132,7 +130,14 @@ namespace RedditRip.UI
             var download = MessageBox.Show("Download file after getting links?", "Download when done.",
                 MessageBoxButtons.YesNoCancel);
 
-            if (download == DialogResult.Cancel) return;
+            switch (download)
+            {
+                case DialogResult.Cancel:
+                    return;
+                case DialogResult.Yes:
+                    SetDestination();
+                    break;
+            }
 
             Tabs.SelectedIndex = Tabs.TabPages["links"].TabIndex;
             cts = new CancellationTokenSource();
@@ -140,7 +145,7 @@ namespace RedditRip.UI
             txtDestination.Enabled = false;
             linkTree.Nodes.Clear();
 
-            Tabs.SelectedIndex = Tabs.TabPages[LogTabName].TabIndex;
+            Tabs.SelectedIndex = LogTabIndex;
             var subs = (from ListViewItem item in listSubReddits.Items select item.Name).ToList();
 
             if (download == DialogResult.Yes)
@@ -271,27 +276,27 @@ namespace RedditRip.UI
             if (subLinks.Any())
             {
                 var subUsers = subLinks.Where(x => x.Post.SubredditName == subName).Select(y => y.Post.AuthorName).Distinct();
-                var subNode = new TreeNode() { Name = subName, Text = subName };
+                var subNode = new TreeNode() { Name = subName, Text = subName, Tag = "sub"};
                 OutputLine($"Building nodes for {subName}.", true);
 
                 foreach (var user in subUsers)
                 {
                     token.ThrowIfCancellationRequested();
                     var posts = subLinks.Where(x => x.Post.AuthorName == user);
-                    var userNode = new TreeNode() { Name = user, Text = user };
+                    var userNode = new TreeNode() { Name = user, Text = user, Tag = "user"};
                     OutputLine($"Building nodes for {user}'s posts to {subName}.", true);
 
                     foreach (var post in posts.Select(x => x.Post.Title ?? x.Post.Id).Distinct())
                     {
                         token.ThrowIfCancellationRequested();
                         var postLinks = posts.Where(x => x.Post.Title == post || x.Post.Id == post);
-                        var postNode = new TreeNode() { Name = post, Text = post };
+                        var postNode = new TreeNode() { Name = post, Text = post, Tag = "post"};
                         OutputLine($"Building nodes for {user}'s post: '{post}' on {subName}", true);
 
                         foreach (var link in postLinks)
                         {
                             token.ThrowIfCancellationRequested();
-                            var linkNode = new TreeNode() { Name = link.Url, Text = link.Url };
+                            var linkNode = new TreeNode() { Name = link.Url, Text = link.Url, Tag = "image"};
                             postNode.Nodes.Add(linkNode);
                         }
                         userNode.Nodes.Add(postNode);
@@ -308,26 +313,6 @@ namespace RedditRip.UI
             return null;
         }
 
-        public void AppendLog(string value)
-        {
-            try
-            {
-                if (InvokeRequired)
-                {
-                    this.Invoke(new Action<string>(AppendLog), new object[] { value });
-                    return;
-                }
-
-                txtLog.AppendText(value);
-                txtLog.SelectionStart = txtLog.Text.Length;
-                txtLog.ScrollToCaret();
-            }
-            catch
-            {
-                // ignored
-            }
-        }
-
         private void importToolStripMenuItem_Click(object sender, EventArgs e)
         {
             var dialog = new OpenFileDialog
@@ -338,7 +323,7 @@ namespace RedditRip.UI
             if (dialog.ShowDialog() == DialogResult.OK)
             {
                 cts = new CancellationTokenSource();
-                Tabs.SelectedIndex = Tabs.TabPages[LogTabName].TabIndex;
+                Tabs.SelectedIndex = LogTabIndex;
                 using (var file = new StreamReader(dialog.FileName))
                 {
                     string line;
@@ -359,7 +344,9 @@ namespace RedditRip.UI
                 path = path?.Replace(_links.FirstOrDefault()?.Post.SubredditName + Path.DirectorySeparatorChar +
                                     _links.FirstOrDefault()?.Post.AuthorName, string.Empty).TrimEnd(Path.DirectorySeparatorChar);
 
-                txtDestination.Text = path ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(txtDestination.Text))
+                    txtDestination.Text = path ?? string.Empty;
+
                 btnCancel.Enabled = true;
                 UpdateLinkTree(cts.Token);
             }
@@ -474,6 +461,82 @@ namespace RedditRip.UI
             cts?.Cancel();
         }
 
+        private void linkTree_AfterSelect(object sender, TreeViewEventArgs e)
+        {
+            if (linkTree.SelectedNode != null && !string.IsNullOrWhiteSpace(txtDestination.Text) &&
+                Directory.Exists(txtDestination.Text))
+            {
+                var path = string.Empty;
+                var fileter = "*.*";
+                var node = linkTree.SelectedNode;
+                while (node?.Tag != null)
+                {
+                    if (node?.Tag.ToString() == "post")
+                    {
+                        fileter = $"*{node.Name}.*";
+                    }
+                    else
+                    path = node.Name + (string.IsNullOrWhiteSpace(path) ? string.Empty : Path.DirectorySeparatorChar + path);
+                    node = node?.Parent;
+                }
+
+                path = txtDestination.Text + Path.DirectorySeparatorChar + path;
+
+                if (Directory.Exists(path))
+                {
+                    imageList.Images.Clear();
+                    imageGallary.Items.Clear();
+                    var dir = new DirectoryInfo(path);
+                    foreach (var file in dir.GetFiles("*.*", SearchOption.AllDirectories))
+                    {
+                        try
+                        {
+                            using (var image = Image.FromFile(file.FullName))
+                            {
+                                imageList.Images.Add(image.GetThumbnailImage(120, 120, () => false, IntPtr.Zero));
+                            }
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+                    }
+
+                    imageGallary.View = View.LargeIcon;
+                    imageList.ImageSize = new Size(120, 120);
+                    imageGallary.LargeImageList = imageList;
+
+                    for (var i = 0; i < this.imageList.Images.Count; i++)
+                    {
+                        var item = new ListViewItem {ImageIndex = i};
+                        imageGallary.Items.Add(item);
+                    }
+                }
+            }
+        }
+
+        #region Invoke Form Controls
+
+        public void AppendLog(string value)
+        {
+            try
+            {
+                if (InvokeRequired)
+                {
+                    this.Invoke(new Action<string>(AppendLog), new object[] { value });
+                    return;
+                }
+
+                txtLog.AppendText(value);
+                txtLog.SelectionStart = txtLog.Text.Length;
+                txtLog.ScrollToCaret();
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
         public void SetCancelButtonEnable(bool value)
         {
             try
@@ -528,5 +591,6 @@ namespace RedditRip.UI
             }
         }
 
+        #endregion
     }
 }

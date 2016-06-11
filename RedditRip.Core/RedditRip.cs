@@ -32,9 +32,6 @@ namespace RedditRip.Core
         private readonly bool _verboseLogging;
         private readonly bool _nsfw;
 
-        private const string SearchUrl = "/r/{0}/search.json?q={1}&restrict_sr=on&sort={2}&t={3}";
-        private const string SearchUrlDate = "/r/{0}/search.json?q=timestamp:{1}..{2}&restrict_sr=on&sort={3}&syntax=cloudsearch";
-
         public RedditRip(string filter, bool allAuthorsPosts, bool nsfw, bool onlyNsfw, bool verboseLogging)
         {
             _verboseLogging = verboseLogging;
@@ -372,26 +369,27 @@ namespace RedditRip.Core
 
                     await wc.DownloadFileTaskAsync(new Uri(link), tempFilename);
 
-                    using (var image = Image.FromFile(tempFilename)) //TODO:: Refactor as per http://stackoverflow.com/a/2216338
+                    using (var stream = new FileStream(tempFilename, FileMode.Open, FileAccess.Read))
                     {
-                        //TODO:: refactor to remove code smell - http://www.exiv2.org/tags.html
-
-                        //XPTitle
-                        SetImageProperty(image, 40091, Encoding.Unicode.GetBytes(imageLink.Post.Title + char.MinValue));
-                        //XPComment
-                        SetImageProperty(image, 40092, Encoding.Unicode.GetBytes(link + char.MinValue));
-                        //XPAuthor
-                        SetImageProperty(image, 40093,
-                            Encoding.Unicode.GetBytes(imageLink.Post.AuthorName + char.MinValue));
-                        //XPKeywords
-                        SetImageProperty(image, 40094,
-                            Encoding.Unicode.GetBytes(imageLink.Post.SubredditName + ";" + imageLink.Post.AuthorName +
-                                                      ";" + imageLink.Post.AuthorFlairText + ";" + imageLink.Post.Domain +
-                                                      char.MinValue));
-                        //Save to desination
-                        image.Save(filename);
+                        using (var image = Image.FromStream(stream))
+                        {
+                            //XPTitle
+                            SetImageProperty(image, 40091, Encoding.Unicode.GetBytes(imageLink.Post.Title + char.MinValue));
+                            //XPComment
+                            SetImageProperty(image, 40092, Encoding.Unicode.GetBytes(link + char.MinValue));
+                            //XPAuthor
+                            SetImageProperty(image, 40093,
+                                Encoding.Unicode.GetBytes(imageLink.Post.AuthorName + char.MinValue));
+                            //XPKeywords
+                            SetImageProperty(image, 40094,
+                                Encoding.Unicode.GetBytes(imageLink.Post.SubredditName + ";" + imageLink.Post.AuthorName +
+                                                          ";" + imageLink.Post.AuthorFlairText + ";" + imageLink.Post.Domain +
+                                                          char.MinValue));
+                            //Save to desination
+                            image.Save(filename);
+                        }
                     }
-
+                    
                     //Delete temp file after web client has been disposed (makes sure no handles to file left over)
                     File.Delete(tempFilename);
                     OutputLine($"Downloaded: {imageLink.Url} to {filename}", true);

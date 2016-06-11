@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             this.txtSubReddit = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
             this.btnAddSub = new System.Windows.Forms.Button();
@@ -45,6 +46,7 @@
             this.txtFilter = new System.Windows.Forms.TextBox();
             this.label3 = new System.Windows.Forms.Label();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.btnCancel = new System.Windows.Forms.Button();
             this.bVerbose = new System.Windows.Forms.CheckBox();
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -52,10 +54,11 @@
             this.exportLinksToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.Tabs = new System.Windows.Forms.TabControl();
             this.links = new System.Windows.Forms.TabPage();
-            this.logTab = new System.Windows.Forms.TabPage();
             this.linkTree = new System.Windows.Forms.TreeView();
+            this.logTab = new System.Windows.Forms.TabPage();
             this.txtLog = new System.Windows.Forms.TextBox();
-            this.btnCancel = new System.Windows.Forms.Button();
+            this.imageGallary = new System.Windows.Forms.ListView();
+            this.imageList = new System.Windows.Forms.ImageList(this.components);
             this.groupBox2.SuspendLayout();
             this.groupBox1.SuspendLayout();
             this.menuStrip1.SuspendLayout();
@@ -244,6 +247,17 @@
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Options";
             // 
+            // btnCancel
+            // 
+            this.btnCancel.Enabled = false;
+            this.btnCancel.Location = new System.Drawing.Point(702, 191);
+            this.btnCancel.Name = "btnCancel";
+            this.btnCancel.Size = new System.Drawing.Size(75, 23);
+            this.btnCancel.TabIndex = 15;
+            this.btnCancel.Text = "Cancel";
+            this.btnCancel.UseVisualStyleBackColor = true;
+            this.btnCancel.Click += new System.EventHandler(this.btnCancel_Click);
+            // 
             // bVerbose
             // 
             this.bVerbose.AutoSize = true;
@@ -299,14 +313,24 @@
             // 
             // links
             // 
+            this.links.Controls.Add(this.imageGallary);
             this.links.Controls.Add(this.linkTree);
             this.links.Location = new System.Drawing.Point(4, 22);
             this.links.Name = "links";
             this.links.Padding = new System.Windows.Forms.Padding(3);
-            this.links.Size = new System.Drawing.Size(593, 238);
+            this.links.Size = new System.Drawing.Size(799, 466);
             this.links.TabIndex = 0;
             this.links.Text = "Links";
             this.links.UseVisualStyleBackColor = true;
+            // 
+            // linkTree
+            // 
+            this.linkTree.Dock = System.Windows.Forms.DockStyle.Left;
+            this.linkTree.Location = new System.Drawing.Point(3, 3);
+            this.linkTree.Name = "linkTree";
+            this.linkTree.Size = new System.Drawing.Size(260, 460);
+            this.linkTree.TabIndex = 1;
+            this.linkTree.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.linkTree_AfterSelect);
             // 
             // logTab
             // 
@@ -318,14 +342,6 @@
             this.logTab.TabIndex = 1;
             this.logTab.Text = "Log";
             this.logTab.UseVisualStyleBackColor = true;
-            // 
-            // linkTree
-            // 
-            this.linkTree.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.linkTree.Location = new System.Drawing.Point(3, 3);
-            this.linkTree.Name = "linkTree";
-            this.linkTree.Size = new System.Drawing.Size(587, 232);
-            this.linkTree.TabIndex = 1;
             // 
             // txtLog
             // 
@@ -341,16 +357,20 @@
             this.txtLog.Size = new System.Drawing.Size(793, 460);
             this.txtLog.TabIndex = 1;
             // 
-            // btnCancel
+            // imageGallary
             // 
-            this.btnCancel.Enabled = false;
-            this.btnCancel.Location = new System.Drawing.Point(702, 191);
-            this.btnCancel.Name = "btnCancel";
-            this.btnCancel.Size = new System.Drawing.Size(75, 23);
-            this.btnCancel.TabIndex = 15;
-            this.btnCancel.Text = "Cancel";
-            this.btnCancel.UseVisualStyleBackColor = true;
-            this.btnCancel.Click += new System.EventHandler(this.btnCancel_Click);
+            this.imageGallary.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.imageGallary.Location = new System.Drawing.Point(263, 3);
+            this.imageGallary.Name = "imageGallary";
+            this.imageGallary.Size = new System.Drawing.Size(533, 460);
+            this.imageGallary.TabIndex = 2;
+            this.imageGallary.UseCompatibleStateImageBehavior = false;
+            // 
+            // imageList
+            // 
+            this.imageList.ColorDepth = System.Windows.Forms.ColorDepth.Depth8Bit;
+            this.imageList.ImageSize = new System.Drawing.Size(32, 32);
+            this.imageList.TransparentColor = System.Drawing.Color.Transparent;
             // 
             // Main
             // 
@@ -408,6 +428,8 @@
         private System.Windows.Forms.TabPage logTab;
         private System.Windows.Forms.TextBox txtLog;
         private System.Windows.Forms.Button btnCancel;
+        private System.Windows.Forms.ListView imageGallary;
+        private System.Windows.Forms.ImageList imageList;
     }
 }
 
