@@ -49,14 +49,14 @@ namespace RedditRip.UI
             
             if (!string.IsNullOrWhiteSpace(txtDestination.Text))
             {
-                txtDestination.Enabled = false;
-                btnGetLinks.Enabled = false;
+                EnableDestinationText(false);
+                EnableGetLinksButton(false);
 
                 OutputLine("Starting downloads....");
                 downloads = new TaskFactory().StartNew(() => DownloadLinks(cts.Token), cts.Token);
 
-                SetCancelButtonEnable(true);
-                SetDownloadButtonEnable(true);
+                EnableCancelButton(true);
+                EnableDownloadButton(true);
             }
         }
 
@@ -180,7 +180,7 @@ namespace RedditRip.UI
             }
             finally
             {
-                SetCancelButtonEnable(false);
+                EnableCancelButton(false);
             }
         }
 
@@ -261,8 +261,8 @@ namespace RedditRip.UI
             }
             finally
             {
-                SetCancelButtonEnable(false);
-                SetDownloadButtonEnable(true);
+                EnableCancelButton(false);
+                EnableDownloadButton(true);
             }
         }
 
@@ -389,7 +389,12 @@ namespace RedditRip.UI
                     token.ThrowIfCancellationRequested();
                     var downloadPostTask =
                         ripper.DownloadPost(post, txtDestination.Text, token)
-                            .ContinueWith(antecedent => OutputLine("Finished downloading post: " + post.Key), token);
+                            .ContinueWith(antecedent =>
+                            {
+                                var link = post.Value.FirstOrDefault();
+                                OutputLine("Finished downloading post: " +
+                                           (link != null ? link.Post.SubredditName + "/" : string.Empty) + post.Key);
+                            }, token);
 
                     tasks.Add(downloadPostTask);
                 }
@@ -417,7 +422,7 @@ namespace RedditRip.UI
             }
             finally
             {
-                SetCancelButtonEnable(false);
+                EnableCancelButton(false);
             }
         }
 
@@ -532,13 +537,31 @@ namespace RedditRip.UI
             }
         }
 
-        public void SetCancelButtonEnable(bool value)
+        public void EnableDestinationText(bool value)
         {
             try
             {
                 if (InvokeRequired)
                 {
-                    this.Invoke(new Action<bool>(SetCancelButtonEnable), new object[] { value });
+                    this.Invoke(new Action<bool>(EnableDestinationText), new object[] { value });
+                    return;
+                }
+
+                txtDestination.Enabled = value;
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        public void EnableCancelButton(bool value)
+        {
+            try
+            {
+                if (InvokeRequired)
+                {
+                    this.Invoke(new Action<bool>(EnableCancelButton), new object[] { value });
                     return;
                 }
 
@@ -550,17 +573,35 @@ namespace RedditRip.UI
             }
         }
 
-        public void SetDownloadButtonEnable(bool value)
+        public void EnableDownloadButton(bool value)
         {
             try
             {
                 if (InvokeRequired)
                 {
-                    this.Invoke(new Action<bool>(SetDownloadButtonEnable), new object[] { value });
+                    this.Invoke(new Action<bool>(EnableDownloadButton), new object[] { value });
                     return;
                 }
 
                 btnDownload.Enabled = value;
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        public void EnableGetLinksButton(bool value)
+        {
+            try
+            {
+                if (InvokeRequired)
+                {
+                    this.Invoke(new Action<bool>(EnableGetLinksButton), new object[] { value });
+                    return;
+                }
+
+                btnGetLinks.Enabled = value;
             }
             catch
             {
