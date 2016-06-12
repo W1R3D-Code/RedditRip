@@ -55,16 +55,13 @@
             this.Tabs = new System.Windows.Forms.TabControl();
             this.links = new System.Windows.Forms.TabPage();
             this.linkTree = new System.Windows.Forms.TreeView();
-            this.logTab = new System.Windows.Forms.TabPage();
-            this.txtLog = new System.Windows.Forms.TextBox();
-            this.imageGallary = new System.Windows.Forms.ListView();
             this.imageList = new System.Windows.Forms.ImageList(this.components);
+            this.txtLog = new System.Windows.Forms.TextBox();
             this.groupBox2.SuspendLayout();
             this.groupBox1.SuspendLayout();
             this.menuStrip1.SuspendLayout();
             this.Tabs.SuspendLayout();
             this.links.SuspendLayout();
-            this.logTab.SuspendLayout();
             this.SuspendLayout();
             // 
             // txtSubReddit
@@ -304,7 +301,6 @@
             // Tabs
             // 
             this.Tabs.Controls.Add(this.links);
-            this.Tabs.Controls.Add(this.logTab);
             this.Tabs.Location = new System.Drawing.Point(0, 259);
             this.Tabs.Name = "Tabs";
             this.Tabs.SelectedIndex = 0;
@@ -313,7 +309,7 @@
             // 
             // links
             // 
-            this.links.Controls.Add(this.imageGallary);
+            this.links.Controls.Add(this.txtLog);
             this.links.Controls.Add(this.linkTree);
             this.links.Location = new System.Drawing.Point(4, 22);
             this.links.Name = "links";
@@ -330,18 +326,12 @@
             this.linkTree.Name = "linkTree";
             this.linkTree.Size = new System.Drawing.Size(260, 460);
             this.linkTree.TabIndex = 1;
-            this.linkTree.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.linkTree_AfterSelect);
             // 
-            // logTab
+            // imageList
             // 
-            this.logTab.Controls.Add(this.txtLog);
-            this.logTab.Location = new System.Drawing.Point(4, 22);
-            this.logTab.Name = "logTab";
-            this.logTab.Padding = new System.Windows.Forms.Padding(3);
-            this.logTab.Size = new System.Drawing.Size(799, 466);
-            this.logTab.TabIndex = 1;
-            this.logTab.Text = "Log";
-            this.logTab.UseVisualStyleBackColor = true;
+            this.imageList.ColorDepth = System.Windows.Forms.ColorDepth.Depth8Bit;
+            this.imageList.ImageSize = new System.Drawing.Size(32, 32);
+            this.imageList.TransparentColor = System.Drawing.Color.Transparent;
             // 
             // txtLog
             // 
@@ -350,27 +340,12 @@
             this.txtLog.Dock = System.Windows.Forms.DockStyle.Fill;
             this.txtLog.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.txtLog.ForeColor = System.Drawing.SystemColors.Info;
-            this.txtLog.Location = new System.Drawing.Point(3, 3);
+            this.txtLog.Location = new System.Drawing.Point(263, 3);
             this.txtLog.Multiline = true;
             this.txtLog.Name = "txtLog";
             this.txtLog.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtLog.Size = new System.Drawing.Size(793, 460);
-            this.txtLog.TabIndex = 1;
-            // 
-            // imageGallary
-            // 
-            this.imageGallary.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.imageGallary.Location = new System.Drawing.Point(263, 3);
-            this.imageGallary.Name = "imageGallary";
-            this.imageGallary.Size = new System.Drawing.Size(533, 460);
-            this.imageGallary.TabIndex = 2;
-            this.imageGallary.UseCompatibleStateImageBehavior = false;
-            // 
-            // imageList
-            // 
-            this.imageList.ColorDepth = System.Windows.Forms.ColorDepth.Depth8Bit;
-            this.imageList.ImageSize = new System.Drawing.Size(32, 32);
-            this.imageList.TransparentColor = System.Drawing.Color.Transparent;
+            this.txtLog.Size = new System.Drawing.Size(533, 460);
+            this.txtLog.TabIndex = 2;
             // 
             // Main
             // 
@@ -392,8 +367,7 @@
             this.menuStrip1.PerformLayout();
             this.Tabs.ResumeLayout(false);
             this.links.ResumeLayout(false);
-            this.logTab.ResumeLayout(false);
-            this.logTab.PerformLayout();
+            this.links.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -425,11 +399,9 @@
         private System.Windows.Forms.TabControl Tabs;
         private System.Windows.Forms.TabPage links;
         private System.Windows.Forms.TreeView linkTree;
-        private System.Windows.Forms.TabPage logTab;
-        private System.Windows.Forms.TextBox txtLog;
         private System.Windows.Forms.Button btnCancel;
-        private System.Windows.Forms.ListView imageGallary;
         private System.Windows.Forms.ImageList imageList;
+        private System.Windows.Forms.TextBox txtLog;
     }
 }
 

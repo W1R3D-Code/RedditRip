@@ -36,11 +36,9 @@ namespace RedditRip.UI
         private void Main_Load(object sender, EventArgs e)
         {
             txtLog.Text = Environment.NewLine;
-            Tabs.SelectedIndex = LogTabIndex;
         }
         private void btnDownload_Click(object sender, EventArgs e)
         {
-            Tabs.SelectedIndex = LogTabIndex;
             StartDownload();
         }
 
@@ -139,13 +137,11 @@ namespace RedditRip.UI
                     break;
             }
 
-            Tabs.SelectedIndex = Tabs.TabPages["links"].TabIndex;
             cts = new CancellationTokenSource();
             btnCancel.Enabled = true;
             txtDestination.Enabled = false;
             linkTree.Nodes.Clear();
 
-            Tabs.SelectedIndex = LogTabIndex;
             var subs = (from ListViewItem item in listSubReddits.Items select item.Name).ToList();
 
             if (download == DialogResult.Yes)
@@ -323,7 +319,6 @@ namespace RedditRip.UI
             if (dialog.ShowDialog() == DialogResult.OK)
             {
                 cts = new CancellationTokenSource();
-                Tabs.SelectedIndex = LogTabIndex;
                 using (var file = new StreamReader(dialog.FileName))
                 {
                     string line;
@@ -461,59 +456,59 @@ namespace RedditRip.UI
             cts?.Cancel();
         }
 
-        private void linkTree_AfterSelect(object sender, TreeViewEventArgs e)
-        {
-            if (linkTree.SelectedNode != null && !string.IsNullOrWhiteSpace(txtDestination.Text) &&
-                Directory.Exists(txtDestination.Text))
-            {
-                var path = string.Empty;
-                var fileter = "*.*";
-                var node = linkTree.SelectedNode;
-                while (node?.Tag != null)
-                {
-                    if (node?.Tag.ToString() == "post")
-                    {
-                        fileter = $"*{node.Name}.*";
-                    }
-                    else
-                    path = node.Name + (string.IsNullOrWhiteSpace(path) ? string.Empty : Path.DirectorySeparatorChar + path);
-                    node = node?.Parent;
-                }
+        //private void linkTree_AfterSelect(object sender, TreeViewEventArgs e)
+        //{
+        //    if (linkTree.SelectedNode != null && !string.IsNullOrWhiteSpace(txtDestination.Text) &&
+        //        Directory.Exists(txtDestination.Text))
+        //    {
+        //        var path = string.Empty;
+        //        var fileter = "*.*";
+        //        var node = linkTree.SelectedNode;
+        //        while (node?.Tag != null)
+        //        {
+        //            if (node?.Tag.ToString() == "post")
+        //            {
+        //                fileter = $"*{node.Name}.*";
+        //            }
+        //            else
+        //            path = node.Name + (string.IsNullOrWhiteSpace(path) ? string.Empty : Path.DirectorySeparatorChar + path);
+        //            node = node?.Parent;
+        //        }
 
-                path = txtDestination.Text + Path.DirectorySeparatorChar + path;
+        //        path = txtDestination.Text + Path.DirectorySeparatorChar + path;
 
-                if (Directory.Exists(path))
-                {
-                    imageList.Images.Clear();
-                    imageGallary.Items.Clear();
-                    var dir = new DirectoryInfo(path);
-                    foreach (var file in dir.GetFiles("*.*", SearchOption.AllDirectories))
-                    {
-                        try
-                        {
-                            using (var image = Image.FromFile(file.FullName))
-                            {
-                                imageList.Images.Add(image.GetThumbnailImage(120, 120, () => false, IntPtr.Zero));
-                            }
-                        }
-                        catch
-                        {
-                            // ignored
-                        }
-                    }
+        //        if (Directory.Exists(path))
+        //        {
+        //            imageList.Images.Clear();
+        //            imageGallary.Items.Clear();
+        //            var dir = new DirectoryInfo(path);
+        //            foreach (var file in dir.GetFiles("*.*", SearchOption.AllDirectories))
+        //            {
+        //                try
+        //                {
+        //                    using (var image = Image.FromFile(file.FullName))
+        //                    {
+        //                        imageList.Images.Add(image.GetThumbnailImage(120, 120, () => false, IntPtr.Zero));
+        //                    }
+        //                }
+        //                catch
+        //                {
+        //                    // ignored
+        //                }
+        //            }
 
-                    imageGallary.View = View.LargeIcon;
-                    imageList.ImageSize = new Size(120, 120);
-                    imageGallary.LargeImageList = imageList;
+        //            imageGallary.View = View.LargeIcon;
+        //            imageList.ImageSize = new Size(120, 120);
+        //            imageGallary.LargeImageList = imageList;
 
-                    for (var i = 0; i < this.imageList.Images.Count; i++)
-                    {
-                        var item = new ListViewItem {ImageIndex = i};
-                        imageGallary.Items.Add(item);
-                    }
-                }
-            }
-        }
+        //            for (var i = 0; i < this.imageList.Images.Count; i++)
+        //            {
+        //                var item = new ListViewItem {ImageIndex = i};
+        //                imageGallary.Items.Add(item);
+        //            }
+        //        }
+        //    }
+        //}
 
         #region Invoke Form Controls
 
