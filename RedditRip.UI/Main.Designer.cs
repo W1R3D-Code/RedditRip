@@ -54,9 +54,9 @@
             this.exportLinksToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.Tabs = new System.Windows.Forms.TabControl();
             this.links = new System.Windows.Forms.TabPage();
+            this.txtLog = new System.Windows.Forms.TextBox();
             this.linkTree = new System.Windows.Forms.TreeView();
             this.imageList = new System.Windows.Forms.ImageList(this.components);
-            this.txtLog = new System.Windows.Forms.TextBox();
             this.groupBox2.SuspendLayout();
             this.groupBox1.SuspendLayout();
             this.menuStrip1.SuspendLayout();
@@ -70,6 +70,7 @@
             this.txtSubReddit.Name = "txtSubReddit";
             this.txtSubReddit.Size = new System.Drawing.Size(188, 20);
             this.txtSubReddit.TabIndex = 0;
+            this.txtSubReddit.TextChanged += new System.EventHandler(this.txtSubReddit_TextChanged);
             // 
             // label1
             // 
@@ -319,20 +320,6 @@
             this.links.Text = "Links";
             this.links.UseVisualStyleBackColor = true;
             // 
-            // linkTree
-            // 
-            this.linkTree.Dock = System.Windows.Forms.DockStyle.Left;
-            this.linkTree.Location = new System.Drawing.Point(3, 3);
-            this.linkTree.Name = "linkTree";
-            this.linkTree.Size = new System.Drawing.Size(260, 460);
-            this.linkTree.TabIndex = 1;
-            // 
-            // imageList
-            // 
-            this.imageList.ColorDepth = System.Windows.Forms.ColorDepth.Depth8Bit;
-            this.imageList.ImageSize = new System.Drawing.Size(32, 32);
-            this.imageList.TransparentColor = System.Drawing.Color.Transparent;
-            // 
             // txtLog
             // 
             this.txtLog.BackColor = System.Drawing.SystemColors.ControlText;
@@ -347,8 +334,23 @@
             this.txtLog.Size = new System.Drawing.Size(533, 460);
             this.txtLog.TabIndex = 2;
             // 
+            // linkTree
+            // 
+            this.linkTree.Dock = System.Windows.Forms.DockStyle.Left;
+            this.linkTree.Location = new System.Drawing.Point(3, 3);
+            this.linkTree.Name = "linkTree";
+            this.linkTree.Size = new System.Drawing.Size(260, 460);
+            this.linkTree.TabIndex = 1;
+            // 
+            // imageList
+            // 
+            this.imageList.ColorDepth = System.Windows.Forms.ColorDepth.Depth8Bit;
+            this.imageList.ImageSize = new System.Drawing.Size(32, 32);
+            this.imageList.TransparentColor = System.Drawing.Color.Transparent;
+            // 
             // Main
             // 
+            this.AcceptButton = this.btnAddSub;
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(807, 751);

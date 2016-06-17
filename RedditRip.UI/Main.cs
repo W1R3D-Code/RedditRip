@@ -36,6 +36,7 @@ namespace RedditRip.UI
         private void Main_Load(object sender, EventArgs e)
         {
             txtLog.Text = Environment.NewLine;
+            this.AcceptButton = btnAddSub;
         }
         private void btnDownload_Click(object sender, EventArgs e)
         {
@@ -83,6 +84,7 @@ namespace RedditRip.UI
                     }
                 }
                 txtSubReddit.Text = string.Empty;
+                this.AcceptButton = btnGetLinks;
             }
         }
 
@@ -134,11 +136,13 @@ namespace RedditRip.UI
                     return;
                 case DialogResult.Yes:
                     SetDestination();
+                    if (string.IsNullOrWhiteSpace(txtDestination.Text)) return;
                     break;
             }
 
             cts = new CancellationTokenSource();
             btnCancel.Enabled = true;
+            btnGetLinks.Enabled = false;
             txtDestination.Enabled = false;
             linkTree.Nodes.Clear();
 
@@ -156,8 +160,6 @@ namespace RedditRip.UI
                     () => GetLinksAsync(subs, txtFilter.Text, bAllowNsfw.Checked, bOnlyNsfw.Checked, cts.Token),
                     cts.Token);
             }
-
-
         }
 
         private async void GetLinksAsync(List<string> subs, string filter, bool allowNsfw, bool onlyNsfw, CancellationToken token)
@@ -410,7 +412,11 @@ namespace RedditRip.UI
                     downloadBatches.Remove(batch);
                 }
 
-                if (curretTasks.ToList().All(x => x.IsCompleted)) OutputLine("Finished downloading.");
+                if (curretTasks.ToList().All(x => x.IsCompleted))
+                {
+                    OutputLine("Finished downloading.");
+                    EnableGetLinksButton(true);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -459,6 +465,12 @@ namespace RedditRip.UI
         private void btnCancel_Click(object sender, EventArgs e)
         {
             cts?.Cancel();
+        }
+
+        private void txtSubReddit_TextChanged(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrWhiteSpace(txtSubReddit.Text))
+                this.AcceptButton = btnAddSub;
         }
 
         //private void linkTree_AfterSelect(object sender, TreeViewEventArgs e)
