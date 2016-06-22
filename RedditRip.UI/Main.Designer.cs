@@ -43,11 +43,10 @@
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.bOnlyNsfw = new System.Windows.Forms.CheckBox();
             this.bAllowNsfw = new System.Windows.Forms.CheckBox();
-            this.txtFilter = new System.Windows.Forms.TextBox();
-            this.label3 = new System.Windows.Forms.Label();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.lbRange = new System.Windows.Forms.Label();
+            this.trackBar1 = new System.Windows.Forms.TrackBar();
             this.btnCancel = new System.Windows.Forms.Button();
-            this.bVerbose = new System.Windows.Forms.CheckBox();
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.importToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -57,8 +56,15 @@
             this.txtLog = new System.Windows.Forms.TextBox();
             this.linkTree = new System.Windows.Forms.TreeView();
             this.imageList = new System.Windows.Forms.ImageList(this.components);
+            this.label4 = new System.Windows.Forms.Label();
+            this.bVerbose = new System.Windows.Forms.CheckBox();
+            this.label3 = new System.Windows.Forms.Label();
+            this.txtFilter = new System.Windows.Forms.TextBox();
+            this.bTop = new System.Windows.Forms.RadioButton();
+            this.bNew = new System.Windows.Forms.RadioButton();
             this.groupBox2.SuspendLayout();
             this.groupBox1.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).BeginInit();
             this.menuStrip1.SuspendLayout();
             this.Tabs.SuspendLayout();
             this.links.SuspendLayout();
@@ -104,7 +110,7 @@
             // label2
             // 
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(382, 25);
+            this.label2.Location = new System.Drawing.Point(8, 208);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(95, 13);
             this.label2.TabIndex = 4;
@@ -112,14 +118,14 @@
             // 
             // txtDestination
             // 
-            this.txtDestination.Location = new System.Drawing.Point(483, 22);
+            this.txtDestination.Location = new System.Drawing.Point(109, 205);
             this.txtDestination.Name = "txtDestination";
-            this.txtDestination.Size = new System.Drawing.Size(257, 20);
+            this.txtDestination.Size = new System.Drawing.Size(212, 20);
             this.txtDestination.TabIndex = 5;
             // 
             // btnDestDir
             // 
-            this.btnDestDir.Location = new System.Drawing.Point(746, 22);
+            this.btnDestDir.Location = new System.Drawing.Point(327, 205);
             this.btnDestDir.Name = "btnDestDir";
             this.btnDestDir.Size = new System.Drawing.Size(24, 20);
             this.btnDestDir.TabIndex = 6;
@@ -151,7 +157,7 @@
             // btnGetLinks
             // 
             this.btnGetLinks.Enabled = false;
-            this.btnGetLinks.Location = new System.Drawing.Point(504, 191);
+            this.btnGetLinks.Location = new System.Drawing.Point(397, 204);
             this.btnGetLinks.Name = "btnGetLinks";
             this.btnGetLinks.Size = new System.Drawing.Size(111, 23);
             this.btnGetLinks.TabIndex = 9;
@@ -162,7 +168,7 @@
             // btnDownload
             // 
             this.btnDownload.Enabled = false;
-            this.btnDownload.Location = new System.Drawing.Point(621, 191);
+            this.btnDownload.Location = new System.Drawing.Point(533, 204);
             this.btnDownload.Name = "btnDownload";
             this.btnDownload.Size = new System.Drawing.Size(75, 23);
             this.btnDownload.TabIndex = 10;
@@ -172,14 +178,17 @@
             // 
             // groupBox2
             // 
+            this.groupBox2.Controls.Add(this.label3);
+            this.groupBox2.Controls.Add(this.txtFilter);
+            this.groupBox2.Controls.Add(this.bVerbose);
             this.groupBox2.Controls.Add(this.bOnlyNsfw);
             this.groupBox2.Controls.Add(this.bAllowNsfw);
-            this.groupBox2.Location = new System.Drawing.Point(10, 183);
+            this.groupBox2.Location = new System.Drawing.Point(385, 25);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(260, 43);
+            this.groupBox2.Size = new System.Drawing.Size(304, 104);
             this.groupBox2.TabIndex = 11;
             this.groupBox2.TabStop = false;
-            this.groupBox2.Text = "NSFW";
+            this.groupBox2.Text = "Options";
             // 
             // bOnlyNsfw
             // 
@@ -204,28 +213,14 @@
             this.bAllowNsfw.Text = "Allow NSFW";
             this.bAllowNsfw.UseVisualStyleBackColor = true;
             // 
-            // txtFilter
-            // 
-            this.txtFilter.Location = new System.Drawing.Point(82, 146);
-            this.txtFilter.Name = "txtFilter";
-            this.txtFilter.Size = new System.Drawing.Size(189, 20);
-            this.txtFilter.TabIndex = 12;
-            // 
-            // label3
-            // 
-            this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(7, 149);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(69, 13);
-            this.label3.TabIndex = 13;
-            this.label3.Text = "Search Filter:";
-            // 
             // groupBox1
             // 
+            this.groupBox1.Controls.Add(this.bNew);
+            this.groupBox1.Controls.Add(this.label4);
+            this.groupBox1.Controls.Add(this.bTop);
+            this.groupBox1.Controls.Add(this.lbRange);
+            this.groupBox1.Controls.Add(this.trackBar1);
             this.groupBox1.Controls.Add(this.btnCancel);
-            this.groupBox1.Controls.Add(this.bVerbose);
-            this.groupBox1.Controls.Add(this.label3);
-            this.groupBox1.Controls.Add(this.txtFilter);
             this.groupBox1.Controls.Add(this.groupBox2);
             this.groupBox1.Controls.Add(this.btnDownload);
             this.groupBox1.Controls.Add(this.btnGetLinks);
@@ -240,15 +235,34 @@
             this.groupBox1.Controls.Add(this.txtSubReddit);
             this.groupBox1.Location = new System.Drawing.Point(12, 27);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(783, 220);
+            this.groupBox1.Size = new System.Drawing.Size(700, 241);
             this.groupBox1.TabIndex = 0;
             this.groupBox1.TabStop = false;
-            this.groupBox1.Text = "Options";
+            this.groupBox1.Text = "Search";
+            // 
+            // lbRange
+            // 
+            this.lbRange.AutoSize = true;
+            this.lbRange.Location = new System.Drawing.Point(93, 141);
+            this.lbRange.Name = "lbRange";
+            this.lbRange.Size = new System.Drawing.Size(37, 13);
+            this.lbRange.TabIndex = 17;
+            this.lbRange.Text = "Today";
+            // 
+            // trackBar1
+            // 
+            this.trackBar1.Location = new System.Drawing.Point(11, 160);
+            this.trackBar1.Name = "trackBar1";
+            this.trackBar1.Size = new System.Drawing.Size(259, 45);
+            this.trackBar1.TabIndex = 16;
+            this.trackBar1.TickStyle = System.Windows.Forms.TickStyle.None;
+            this.trackBar1.Value = 1;
+            this.trackBar1.Scroll += new System.EventHandler(this.trackBar1_Scroll);
             // 
             // btnCancel
             // 
             this.btnCancel.Enabled = false;
-            this.btnCancel.Location = new System.Drawing.Point(702, 191);
+            this.btnCancel.Location = new System.Drawing.Point(614, 204);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 23);
             this.btnCancel.TabIndex = 15;
@@ -256,23 +270,13 @@
             this.btnCancel.UseVisualStyleBackColor = true;
             this.btnCancel.Click += new System.EventHandler(this.btnCancel_Click);
             // 
-            // bVerbose
-            // 
-            this.bVerbose.AutoSize = true;
-            this.bVerbose.Location = new System.Drawing.Point(409, 195);
-            this.bVerbose.Name = "bVerbose";
-            this.bVerbose.Size = new System.Drawing.Size(91, 17);
-            this.bVerbose.TabIndex = 14;
-            this.bVerbose.Text = "Verbose Logs";
-            this.bVerbose.UseVisualStyleBackColor = true;
-            // 
             // menuStrip1
             // 
             this.menuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.fileToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
-            this.menuStrip1.Size = new System.Drawing.Size(807, 24);
+            this.menuStrip1.Size = new System.Drawing.Size(719, 24);
             this.menuStrip1.TabIndex = 2;
             this.menuStrip1.Text = "menuStrip1";
             // 
@@ -302,10 +306,11 @@
             // Tabs
             // 
             this.Tabs.Controls.Add(this.links);
-            this.Tabs.Location = new System.Drawing.Point(0, 259);
+            this.Tabs.Dock = System.Windows.Forms.DockStyle.Bottom;
+            this.Tabs.Location = new System.Drawing.Point(0, 258);
             this.Tabs.Name = "Tabs";
             this.Tabs.SelectedIndex = 0;
-            this.Tabs.Size = new System.Drawing.Size(807, 492);
+            this.Tabs.Size = new System.Drawing.Size(719, 485);
             this.Tabs.TabIndex = 3;
             // 
             // links
@@ -315,7 +320,7 @@
             this.links.Location = new System.Drawing.Point(4, 22);
             this.links.Name = "links";
             this.links.Padding = new System.Windows.Forms.Padding(3);
-            this.links.Size = new System.Drawing.Size(799, 466);
+            this.links.Size = new System.Drawing.Size(711, 459);
             this.links.TabIndex = 0;
             this.links.Text = "Links";
             this.links.UseVisualStyleBackColor = true;
@@ -331,7 +336,7 @@
             this.txtLog.Multiline = true;
             this.txtLog.Name = "txtLog";
             this.txtLog.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtLog.Size = new System.Drawing.Size(533, 460);
+            this.txtLog.Size = new System.Drawing.Size(445, 453);
             this.txtLog.TabIndex = 2;
             // 
             // linkTree
@@ -339,7 +344,7 @@
             this.linkTree.Dock = System.Windows.Forms.DockStyle.Left;
             this.linkTree.Location = new System.Drawing.Point(3, 3);
             this.linkTree.Name = "linkTree";
-            this.linkTree.Size = new System.Drawing.Size(260, 460);
+            this.linkTree.Size = new System.Drawing.Size(260, 453);
             this.linkTree.TabIndex = 1;
             // 
             // imageList
@@ -348,12 +353,71 @@
             this.imageList.ImageSize = new System.Drawing.Size(32, 32);
             this.imageList.TransparentColor = System.Drawing.Color.Transparent;
             // 
+            // label4
+            // 
+            this.label4.AutoSize = true;
+            this.label4.Location = new System.Drawing.Point(8, 141);
+            this.label4.Name = "label4";
+            this.label4.Size = new System.Drawing.Size(79, 13);
+            this.label4.TabIndex = 18;
+            this.label4.Text = "Search Range:";
+            // 
+            // bVerbose
+            // 
+            this.bVerbose.AutoSize = true;
+            this.bVerbose.Location = new System.Drawing.Point(192, 19);
+            this.bVerbose.Name = "bVerbose";
+            this.bVerbose.Size = new System.Drawing.Size(91, 17);
+            this.bVerbose.TabIndex = 15;
+            this.bVerbose.Text = "Verbose Logs";
+            this.bVerbose.UseVisualStyleBackColor = true;
+            // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Location = new System.Drawing.Point(9, 58);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(69, 13);
+            this.label3.TabIndex = 17;
+            this.label3.Text = "Search Filter:";
+            // 
+            // txtFilter
+            // 
+            this.txtFilter.Location = new System.Drawing.Point(84, 55);
+            this.txtFilter.Name = "txtFilter";
+            this.txtFilter.Size = new System.Drawing.Size(199, 20);
+            this.txtFilter.TabIndex = 16;
+            // 
+            // bTop
+            // 
+            this.bTop.AutoSize = true;
+            this.bTop.Checked = true;
+            this.bTop.Location = new System.Drawing.Point(277, 160);
+            this.bTop.Name = "bTop";
+            this.bTop.Size = new System.Drawing.Size(44, 17);
+            this.bTop.TabIndex = 18;
+            this.bTop.TabStop = true;
+            this.bTop.Text = "Top";
+            this.bTop.UseVisualStyleBackColor = true;
+            this.bTop.CheckedChanged += new System.EventHandler(this.bTop_CheckedChanged);
+            // 
+            // bNew
+            // 
+            this.bNew.AutoSize = true;
+            this.bNew.Location = new System.Drawing.Point(327, 160);
+            this.bNew.Name = "bNew";
+            this.bNew.Size = new System.Drawing.Size(47, 17);
+            this.bNew.TabIndex = 20;
+            this.bNew.Text = "New";
+            this.bNew.UseVisualStyleBackColor = true;
+            this.bNew.CheckedChanged += new System.EventHandler(this.bNew_CheckedChanged);
+            // 
             // Main
             // 
             this.AcceptButton = this.btnAddSub;
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(807, 751);
+            this.ClientSize = new System.Drawing.Size(719, 743);
             this.Controls.Add(this.Tabs);
             this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.menuStrip1);
@@ -365,6 +429,7 @@
             this.groupBox2.PerformLayout();
             this.groupBox1.ResumeLayout(false);
             this.groupBox1.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).EndInit();
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
             this.Tabs.ResumeLayout(false);
@@ -390,10 +455,7 @@
         private System.Windows.Forms.GroupBox groupBox2;
         private System.Windows.Forms.CheckBox bOnlyNsfw;
         private System.Windows.Forms.CheckBox bAllowNsfw;
-        private System.Windows.Forms.TextBox txtFilter;
-        private System.Windows.Forms.Label label3;
         private System.Windows.Forms.GroupBox groupBox1;
-        private System.Windows.Forms.CheckBox bVerbose;
         private System.Windows.Forms.MenuStrip menuStrip1;
         private System.Windows.Forms.ToolStripMenuItem fileToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem importToolStripMenuItem;
@@ -404,6 +466,14 @@
         private System.Windows.Forms.Button btnCancel;
         private System.Windows.Forms.ImageList imageList;
         private System.Windows.Forms.TextBox txtLog;
+        private System.Windows.Forms.TrackBar trackBar1;
+        private System.Windows.Forms.Label lbRange;
+        private System.Windows.Forms.Label label3;
+        private System.Windows.Forms.TextBox txtFilter;
+        private System.Windows.Forms.CheckBox bVerbose;
+        private System.Windows.Forms.Label label4;
+        private System.Windows.Forms.RadioButton bNew;
+        private System.Windows.Forms.RadioButton bTop;
     }
 }
 

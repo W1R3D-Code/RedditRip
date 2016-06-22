@@ -42,7 +42,7 @@ namespace RedditRip.Core
             Log = LogManager.GetLogger(Assembly.GetEntryAssembly().ManifestModule.Name);
         }
 
-        public async Task<List<ImageLink>> GetImgurLinksFromSubReddit(Reddit reddit, string sub, string outputPath, CancellationToken token)
+        public async Task<List<ImageLink>> GetImgurLinksFromSubReddit(Reddit reddit, string sub, SearchRange searchRange, Sorting sortOrder, string outputPath, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
             Subreddit subreddit = null;
@@ -64,8 +64,32 @@ namespace RedditRip.Core
 
             if (_filter == null) _filter = string.Empty;
 
+            var searchTo = DateTime.Now;
+            var searchFrom = DateTime.Now;
+            switch (searchRange)
+            {
+                case SearchRange.Today:
+                    searchFrom = searchFrom.AddDays(-1);
+                    break;
+                case SearchRange.Week:
+                    searchFrom = searchFrom.AddDays(-7);
+                    break;
+                case SearchRange.Fortnight:
+                    searchFrom = searchFrom.AddDays(-14);
+                    break;
+                case SearchRange.Month:
+                    searchFrom = searchFrom.AddMonths(-1);
+                    break;
+                case SearchRange.ThreeMonths:
+                    searchFrom = searchFrom.AddMonths(-3);
+                    break;
+                case SearchRange.SixMonths:
+                    searchFrom = searchFrom.AddMonths(-6);
+                    break;
+            }
+
             var search = !string.IsNullOrWhiteSpace(sub)
-                ? subreddit?.Search(_filter)
+                ? searchRange == SearchRange.AllTime ? subreddit?.Search(_filter) : subreddit?.Search(searchFrom, searchTo, sortOrder)
                 : reddit.Search<Post>(_filter);
 
             token.ThrowIfCancellationRequested();
@@ -93,8 +117,7 @@ namespace RedditRip.Core
                     {
                         if (_allAuthorsPosts)
                         {
-                            if (!users.Contains(listing.Current.AuthorName) &&
-                                !processedUsers.Contains(listing.Current.AuthorName))
+                            if (!users.Contains(listing.Current.AuthorName) && !processedUsers.Contains(listing.Current.AuthorName))
                             {
                                 OutputLine($"Adding user to batch: {listing.Current.AuthorName}", true);
                                 users.Add(listing.Current.AuthorName);
@@ -103,8 +126,7 @@ namespace RedditRip.Core
                         }
                         else
                         {
-                            if (!listing.Current.Domain.Contains("imgur.com") || (!_nsfw && listing.Current.NSFW) ||
-                                (_onlyNsfw && !listing.Current.NSFW))
+                            if (!listing.Current.Domain.Contains("imgur.com") || (!_nsfw && listing.Current.NSFW) || (_onlyNsfw && !listing.Current.NSFW))
                             {
                                 var suffix = listing.Current.NSFW ? " NSFW" : listing.Current.Url.DnsSafeHost;
                                 OutputLine($"Skipping non-imgur link: {listing.Current.Url} ({suffix})", true);
@@ -122,9 +144,7 @@ namespace RedditRip.Core
                     {
                         token.ThrowIfCancellationRequested();
                         OutputLine($"Getting all posts for user: {user}", true);
-                        var userPosts =
-                            reddit.GetUser(user).Posts.OrderByDescending(post => post.Score)
-                                .Where(post => post.Url.DnsSafeHost.Contains("imgur.com"));
+                        var userPosts = reddit.GetUser(user).Posts.OrderByDescending(post => post.Score).Where(post => post.Url.DnsSafeHost.Contains("imgur.com"));
 
                         if (_onlyNsfw)
                             userPosts = userPosts.Where(x => x.NSFW);
@@ -135,8 +155,7 @@ namespace RedditRip.Core
                         foreach (var userPost in userPosts)
                         {
                             token.ThrowIfCancellationRequested();
-                            if (posts.Exists(x => x.Url == userPost.Url) ||
-                                links.Exists(x => x.Url == userPost.Url.ToString())) continue;
+                            if (posts.Exists(x => x.Url == userPost.Url) || links.Exists(x => x.Url == userPost.Url.ToString())) continue;
 
                             posts.Add(userPost);
                         }
@@ -161,8 +180,7 @@ namespace RedditRip.Core
                         }
                         Task.WaitAll(tasks.ToArray());
 
-                        links = tasks.Cast<Task<List<ImageLink>>>()
-                            .Aggregate(links, (current, task) => CombineLinkLists(task.Result, current));
+                        links = tasks.Cast<Task<List<ImageLink>>>().Aggregate(links, (current, task) => CombineLinkLists(task.Result, current));
 
                         if (string.IsNullOrWhiteSpace(subName))
                             subName = links.First()?.Post.SubredditName;
@@ -219,8 +237,7 @@ namespace RedditRip.Core
 
             url = url.StartsWith("http://") ? url : "http://" + url.Substring(url.IndexOf(post.Url.DnsSafeHost, StringComparison.Ordinal));
 
-            var name = Path.GetInvalidFileNameChars()
-                .Aggregate(post.AuthorName, (current, c) => current.Replace(c, '-'));
+            var name = Path.GetInvalidFileNameChars().Aggregate(post.AuthorName, (current, c) => current.Replace(c, '-'));
 
             var filepath = outputPath + "\\";
 
@@ -255,8 +272,7 @@ namespace RedditRip.Core
 
             if (caroselAlbum && !gridAlbum) return links;
 
-            var regPattern = new Regex(@"<img[^>]*?src\s*=\s*[""']?([^'"" >]+?)[ '""][^>]*?>",
-                RegexOptions.IgnoreCase);
+            var regPattern = new Regex(@"<img[^>]*?src\s*=\s*[""']?([^'"" >]+?)[ '""][^>]*?>", RegexOptions.IgnoreCase);
 
             var matchImageLinks = regPattern.Matches(htmlString);
 
@@ -308,15 +324,13 @@ namespace RedditRip.Core
                 var subName = post.Value.FirstOrDefault().Post.SubredditName;
                 var userName = post.Value.FirstOrDefault().Post.AuthorName;
                 var postId = post.Key;
-                var filePath = destination + Path.DirectorySeparatorChar + subName + Path.DirectorySeparatorChar +
-                               userName;
+                var filePath = destination + Path.DirectorySeparatorChar + subName + Path.DirectorySeparatorChar + userName;
                 var fileNameBase = $"{userName}_{subName}_{postId}";
 
                 var dir = new DirectoryInfo(filePath);
                 dir.Create();
 
-                var existsingFiles = Directory.GetFiles(filePath, $"{fileNameBase}*",
-                    SearchOption.TopDirectoryOnly).ToList();
+                var existsingFiles = Directory.GetFiles(filePath, $"{fileNameBase}*", SearchOption.TopDirectoryOnly).ToList();
 
                 if (existsingFiles.Count() >= post.Value.Count) return;
 
@@ -332,8 +346,7 @@ namespace RedditRip.Core
                     var extention = GetExtention(imageLink.Url);
 
                     count++;
-                    var fullFilePath = filePath + Path.DirectorySeparatorChar + fileNameBase + "_" +
-                                       count.ToString("0000") + extention;
+                    var fullFilePath = filePath + Path.DirectorySeparatorChar + fileNameBase + "_" + count.ToString("0000") + extention;
 
                     if (!existsingFiles.Contains(fullFilePath))
                     {
@@ -360,10 +373,7 @@ namespace RedditRip.Core
                     var uri = new Uri(imageLink.Url);
                     var domain = uri.DnsSafeHost;
 
-                    var link = imageLink.Url.StartsWith("http://")
-                        ? imageLink.Url
-                        : "http://" +
-                          imageLink.Url.Substring(imageLink.Url.IndexOf(domain, StringComparison.Ordinal));
+                    var link = imageLink.Url.StartsWith("http://") ? imageLink.Url : "http://" + imageLink.Url.Substring(imageLink.Url.IndexOf(domain, StringComparison.Ordinal));
 
                     var tempFilename = Path.GetTempPath() + Path.GetRandomFileName() + extention;
 
@@ -378,18 +388,14 @@ namespace RedditRip.Core
                             //XPComment
                             SetImageProperty(image, 40092, Encoding.Unicode.GetBytes(link + char.MinValue));
                             //XPAuthor
-                            SetImageProperty(image, 40093,
-                                Encoding.Unicode.GetBytes(imageLink.Post.AuthorName + char.MinValue));
+                            SetImageProperty(image, 40093, Encoding.Unicode.GetBytes(imageLink.Post.AuthorName + char.MinValue));
                             //XPKeywords
-                            SetImageProperty(image, 40094,
-                                Encoding.Unicode.GetBytes(imageLink.Post.SubredditName + ";" + imageLink.Post.AuthorName +
-                                                          ";" + imageLink.Post.AuthorFlairText + ";" + imageLink.Post.Domain +
-                                                          char.MinValue));
+                            SetImageProperty(image, 40094, Encoding.Unicode.GetBytes(imageLink.Post.SubredditName + ";" + imageLink.Post.AuthorName + ";" + imageLink.Post.AuthorFlairText + ";" + imageLink.Post.Domain + char.MinValue));
                             //Save to desination
                             image.Save(filename);
                         }
                     }
-                    
+
                     //Delete temp file after web client has been disposed (makes sure no handles to file left over)
                     File.Delete(tempFilename);
                     OutputLine($"Downloaded: {imageLink.Url} to {filename}", true);
@@ -410,7 +416,7 @@ namespace RedditRip.Core
 
         private static void SetImageProperty(Image image, int propertyId, byte[] value)
         {
-            var prop = (PropertyItem)FormatterServices.GetUninitializedObject(typeof(PropertyItem));
+            var prop = (PropertyItem) FormatterServices.GetUninitializedObject(typeof(PropertyItem));
             prop.Id = propertyId;
             prop.Value = value;
             prop.Len = prop.Value.Length;
@@ -420,10 +426,7 @@ namespace RedditRip.Core
 
         private static string GetExtention(string imgurl)
         {
-            var extention = (imgurl.Contains('.') && imgurl.LastIndexOf('.') > imgurl.LastIndexOf('/') &&
-                             imgurl.LastIndexOf('.') < (imgurl.Length - 2))
-                ? imgurl.Substring(imgurl.LastIndexOf('.'))
-                : string.Empty;
+            var extention = (imgurl.Contains('.') && imgurl.LastIndexOf('.') > imgurl.LastIndexOf('/') && imgurl.LastIndexOf('.') < (imgurl.Length - 2)) ? imgurl.Substring(imgurl.LastIndexOf('.')) : string.Empty;
 
             if (extention.Contains('?'))
                 extention = extention.Substring(0, extention.IndexOf('?'));
@@ -433,7 +436,7 @@ namespace RedditRip.Core
         private void OutputLine(string message, bool verboseMessage = false)
         {
             if (verboseMessage && !_verboseLogging) return;
-            
+
             Debug.WriteLine($"{DateTime.Now.ToShortTimeString()}: {message}");
             if (verboseMessage)
             {

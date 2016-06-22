@@ -60,6 +60,7 @@
     <Compile Include="ImageLink.cs" />
     <Compile Include="RedditRip.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SearchRange.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
