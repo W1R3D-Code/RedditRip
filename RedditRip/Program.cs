@@ -118,11 +118,11 @@ namespace RedditRip
                         {
                             tasks.AddRange(subReddits.Where(x => !string.IsNullOrWhiteSpace(x))
                                 .Select(
-                                    sub => ripper.GetImgurLinksFromSubReddit(reddit, sub, destination, new CancellationToken())));
+                                    sub => ripper.GetImgurLinksFromSubReddit(reddit, sub, SearchRange.AllTime, Sorting.Top,  destination, new CancellationToken())));
                         }
                         else
                         {
-                            tasks.Add(ripper.GetImgurLinksFromSubReddit(reddit, null, destination, new CancellationToken()));
+                            tasks.Add(ripper.GetImgurLinksFromSubReddit(reddit, null, SearchRange.AllTime, Sorting.Top, destination, new CancellationToken()));
                         }
 
                         Task.WaitAll(tasks.ToArray());
