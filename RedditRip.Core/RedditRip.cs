@@ -320,9 +320,9 @@ namespace RedditRip.Core
         {
             if (post.Value.Any() && !string.IsNullOrWhiteSpace(destination))
             {
-                var details = post.Value.FirstOrDefault().GetPostDetails(post);
-                var subName = post.Value.FirstOrDefault().Post.SubredditName;
-                var userName = post.Value.FirstOrDefault().Post.AuthorName;
+                var details = post.Value.FirstOrDefault()?.GetPostDetails(post);
+                var subName = post.Value.FirstOrDefault()?.Post.SubredditName;
+                var userName = post.Value.FirstOrDefault()?.Post.AuthorName;
                 var postId = post.Key;
                 var filePath = destination + Path.DirectorySeparatorChar + subName + Path.DirectorySeparatorChar + userName;
                 var fileNameBase = $"{userName}_{subName}_{postId}";
@@ -390,7 +390,29 @@ namespace RedditRip.Core
                             //XPAuthor
                             SetImageProperty(image, 40093, Encoding.Unicode.GetBytes(imageLink.Post.AuthorName + char.MinValue));
                             //XPKeywords
-                            SetImageProperty(image, 40094, Encoding.Unicode.GetBytes(imageLink.Post.SubredditName + ";" + imageLink.Post.AuthorName + ";" + imageLink.Post.AuthorFlairText + ";" + imageLink.Post.Domain + char.MinValue));
+                            var keywords = new List<string>
+                            {
+                                imageLink.Post.SubredditName,
+                                imageLink.Post.AuthorName,
+                                imageLink.Post.AuthorFlairText,
+                                imageLink.Post.Domain,
+                                imageLink.Post.LinkFlairText
+                            };
+
+                            if (imageLink.Post.NSFW)
+                                keywords.Add("NSFW");
+
+                            var title =
+                                imageLink.Post.Title
+                                    .Replace('(', '[')
+                                    .Replace(')', ']')
+                                    .Replace('{', '[')
+                                    .Replace('}', ']');
+
+                            keywords.AddRange(from Match match in Regex.Matches(title, @"\[(.*?)\]")
+                                select match.Groups[1].Value.Replace(" ", ""));
+                            
+                            SetImageProperty(image, 40094, Encoding.Unicode.GetBytes(string.Join(";", keywords) + char.MinValue));
                             //Save to desination
                             image.Save(filename);
                         }
