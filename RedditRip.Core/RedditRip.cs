@@ -15,12 +15,16 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Imgur.API;
+using Imgur.API.Authentication.Impl;
+using Imgur.API.Endpoints.Impl;
+using Imgur.API.Models;
 using log4net;
 using log4net.Core;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
-using RedditRip.Core.Imgur;
+using RedditRip.Core.Eroshare;
 using Image = System.Drawing.Image;
 
 namespace RedditRip.Core
@@ -36,6 +40,7 @@ namespace RedditRip.Core
         private readonly bool _onlyNsfw;
         private readonly bool _verboseLogging;
         private readonly bool _nsfw;
+        private static string[] videoExtensions = { ".WAV", ".MID", ".MIDI", ".WMA", ".MP3", ".OGG", ".RMA", ".AVI", ".MP4", ".DIVX", ".WMV" };
 
         public RedditRip(string filter, bool allAuthorsPosts, bool nsfw, bool onlyNsfw, bool verboseLogging)
         {
@@ -122,7 +127,8 @@ namespace RedditRip.Core
                     {
                         if (_allAuthorsPosts)
                         {
-                            if (!users.Contains(listing.Current.AuthorName) && !processedUsers.Contains(listing.Current.AuthorName))
+                            if (!users.Contains(listing.Current.AuthorName) &&
+                                !processedUsers.Contains(listing.Current.AuthorName))
                             {
                                 OutputLine($"Adding user to batch: {listing.Current.AuthorName}", true);
                                 users.Add(listing.Current.AuthorName);
@@ -131,7 +137,11 @@ namespace RedditRip.Core
                         }
                         else
                         {
-                            if (!listing.Current.Domain.Contains("imgur.com") || (!_nsfw && listing.Current.NSFW) || (_onlyNsfw && !listing.Current.NSFW))
+                            //Tidy this up, unify in list of domain, probably in a config
+                            var compatableDomain = isSupportedDomain(listing.Current.Domain);
+
+                            if (!compatableDomain || (!_nsfw && listing.Current.NSFW) ||
+                                (_onlyNsfw && !listing.Current.NSFW))
                             {
                                 var suffix = listing.Current.NSFW ? " NSFW" : listing.Current.Url.DnsSafeHost;
                                 OutputLine($"Skipping non-imgur link: {listing.Current.Url} ({suffix})", true);
@@ -149,7 +159,11 @@ namespace RedditRip.Core
                     {
                         token.ThrowIfCancellationRequested();
                         OutputLine($"Getting all posts for user: {user}", true);
-                        var userPosts = reddit.GetUser(user).Posts.OrderByDescending(post => post.Score).Where(post => post.Url.DnsSafeHost.Contains("imgur.com"));
+
+                        var userPosts =
+                            reddit.GetUser(user)
+                                .Posts.OrderByDescending(post => post.Score)
+                                .Where(post => isSupportedDomain(post.Domain));
 
                         if (_onlyNsfw)
                             userPosts = userPosts.Where(x => x.NSFW);
@@ -160,7 +174,8 @@ namespace RedditRip.Core
                         foreach (var userPost in userPosts)
                         {
                             token.ThrowIfCancellationRequested();
-                            if (posts.Exists(x => x.Url == userPost.Url) || links.Exists(x => x.Url == userPost.Url.ToString())) continue;
+                            if (posts.Exists(x => x.Url == userPost.Url) ||
+                                links.Exists(x => x.Url == userPost.Url.ToString())) continue;
 
                             posts.Add(userPost);
                         }
@@ -181,7 +196,24 @@ namespace RedditRip.Core
                                 break;
 
                             var post = posts[i + j];
-                            tasks.Add(GetImgurImageOrAlbumFromUrl(post, outputPath, token));
+
+                            if (post.Domain.Contains("imgur.com"))
+                            {
+                                tasks.Add(GetImgurImageOrAlbumFromUrl(post, outputPath, token));
+                            }
+                            else if (post.Domain.Contains("eroshare.com"))
+                            {
+                                tasks.Add(GetEroshareContentFromUrl(post, outputPath, token));
+                            }
+                            else if (post.Domain.Contains("reddituploads.com"))
+                            {
+                                links.Add(GetSingleImageFromUrlWithKnownExtention(post, outputPath, ".jpg", token));
+                            }
+                            else if (post.Domain.Contains("gfycat.com"))
+                            {
+                                links.Add(GetSingleImageFromUrlWithKnownExtention(post, outputPath, ".gif", token, true, "giant"));
+                            }
+
                         }
                         Task.WaitAll(tasks.ToArray());
 
@@ -231,6 +263,81 @@ namespace RedditRip.Core
             return links;
         }
 
+        private ImageLink GetSingleImageFromUrlWithKnownExtention(Post post, string outputPath, string extention,
+            CancellationToken token, bool appendExtensionToUrl = false, string prefixSubDomain = "")
+        {
+            token.ThrowIfCancellationRequested();
+            var ext = extention.StartsWith(".") ? extention : "." + extention;
+            var url = post.Url.ToString().Replace("&amp;", "&");
+
+            if (appendExtensionToUrl)
+                url = url + ext;
+
+            if (!string.IsNullOrWhiteSpace(prefixSubDomain))
+                url = url.Insert(url.IndexOf("//") + 2,prefixSubDomain + ".");
+            
+            var filename = GetFilename(post, outputPath);
+
+            filename = filename.EndsWith(ext) ? filename : filename + ext;
+            
+            OutputLine($"\tAdding Link {url}", true);
+            var link = new ImageLink(post, url, filename);
+            return link;
+        }
+
+        private async Task<List<ImageLink>> GetEroshareContentFromUrl(Post post, string outputPath, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            var links = new List<ImageLink>();
+            var eroshareApiUrl = "https://api.eroshare.com/api/v1/albums/"; //TODO:: Move to config
+
+            OutputLine($"\tGetting links from post: {post.Title}", true);
+
+            var filename = GetFilename(post, outputPath);
+
+            var url = post.Url.ToString();
+            var eroshareId = url.Substring(url.LastIndexOf("/") + 1);
+
+            var request = (HttpWebRequest) WebRequest.Create(eroshareApiUrl + eroshareId);
+            var responseJson = string.Empty;
+            try
+            {
+                var response = await request.GetResponseAsync();
+                using (var responseStream = response.GetResponseStream())
+                {
+                    if (responseStream != null)
+                    {
+                        var reader = new StreamReader(responseStream, Encoding.UTF8);
+                        responseJson = reader.ReadToEnd();
+                    }
+                }
+
+                var album = JsonConvert.DeserializeObject<EroshareAlbum>(responseJson);
+
+                if (album == null || !album.items.Any())
+                    return links;
+
+                foreach (var item in album.items)
+                {
+                    switch (item.type.ToLower())
+                    {
+                        case "image":
+                            links.Add(new ImageLink(post, item.url_orig, filename + GetExtention(item.url_orig)));
+                            break;
+                        case "video":
+                            links.Add(new ImageLink(post, item.url_mp4, filename + GetExtention(item.url_mp4)));
+                            break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to download {url} - {ex.Message} {ex.InnerException?.Message}");
+            }
+            
+            return links;
+        }
+
         private async Task<List<ImageLink>> GetImgurImageOrAlbumFromUrl(Post post, string outputPath, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
@@ -238,20 +345,11 @@ namespace RedditRip.Core
 
             OutputLine($"\tGetting links from post: {post.Title}", true);
 
-            var url = new Uri(post.Url.ToString()).GetLeftPart(UriPartial.Path).Replace(".gifv", ".gif");
+            var url = post.Url.GetLeftPart(UriPartial.Path).Replace(".gifv", ".gif");
 
             url = url.StartsWith("http://") ? url : "http://" + url.Substring(url.IndexOf(post.Url.DnsSafeHost, StringComparison.Ordinal));
 
-            var name = Path.GetInvalidFileNameChars().Aggregate(post.AuthorName, (current, c) => current.Replace(c, '-'));
-
-            var filepath = outputPath + "\\";
-
-            if (_allAuthorsPosts)
-                filepath += post.AuthorName;
-            else
-                filepath += post.SubredditName + "\\" + name;
-
-            var filename = filepath + $"\\{name}_{post.SubredditName}_{post.Id}";
+            var filename = GetFilename(post, outputPath);
 
             var extention = GetExtention(url);
 
@@ -262,51 +360,29 @@ namespace RedditRip.Core
                 return links;
             }
 
-            //  Horibble and hacky! - until I find a better solition though, 
-            //  this method should be able to get the json object that imgur is using to render the page after load.
-            url = url + "/layout/grid";
-
-            var htmlString = await GetHtml(url, token);
-            if (string.IsNullOrWhiteSpace(htmlString)) return links;
-
-            var start = htmlString.IndexOf("window.runSlots = ", StringComparison.InvariantCultureIgnoreCase) + "window.runSlots = ".Length;
-            var json =
-                htmlString.Substring(start,
-                    htmlString.IndexOf("var", start, StringComparison.InvariantCultureIgnoreCase) - start)
-                    .Replace("_config:", "\"_config\" :")
-                    .Replace("_place:", "\"_place\" :")
-                    .Replace("_item:", "\"_item\" :")
-                    .Trim()
-                    .Trim(';');
-
-            var data = JsonConvert.DeserializeObject<WindowRunSlots>(json);
-            var images = data._item.album_images.images;
+            var images = await GetImgurImageAsync(url.Substring(url.LastIndexOf("/") + 1), token);
 
             links.AddRange(
                 images.Select(
-                    image => new ImageLink(post, "http://i.imgur.com/" + image.hash + image.ext, filename + image.ext)));
+                    image => new ImageLink(post, image.Link, filename + GetExtention(image.Link))));
 
             return links;
         }
 
-        private async Task<string> GetHtml(string url, CancellationToken token)
+        private string GetFilename(Post post, string outputPath)
         {
-            var htmlString = string.Empty;
+            var name = Path.GetInvalidFileNameChars()
+                .Aggregate(post.AuthorName, (current, c) => current.Replace(c, '-'));
 
-            try
-            {
-                using (var client = new WebClient())
-                {
-                    htmlString = await client.DownloadStringTaskAsync(new Uri(url));
-                }
-            }
-            catch (Exception e)
-            {
-                OutputLine($"\tError loading album {url}: {e.Message}", true);
-                return string.Empty;
-            }
+            var filepath = outputPath + "\\";
 
-            return htmlString;
+            if (_allAuthorsPosts)
+                filepath += post.AuthorName;
+            else
+                filepath += post.SubredditName + "\\" + name;
+
+            var filename = filepath + $"\\{name}_{post.SubredditName}_{post.Id}";
+            return filename;
         }
 
         public async Task DownloadPost(KeyValuePair<string, List<ImageLink>> post, string destination, CancellationToken token)
@@ -336,10 +412,16 @@ namespace RedditRip.Core
                     if (string.IsNullOrWhiteSpace(domain) || imageLink.Url.Contains("removed.png")) continue;
 
                     imageLink.Url = imageLink.Url.Replace(".gifv", ".gif");
-                    var extention = GetExtention(imageLink.Url);
+
+                    var extention = string.IsNullOrWhiteSpace(imageLink.Filename)
+                        ? GetExtention(imageLink.Url)
+                        : GetExtention(imageLink.Filename);
 
                     count++;
-                    var fullFilePath = filePath + Path.DirectorySeparatorChar + fileNameBase + "_" + count.ToString("0000") + extention;
+                    var fullFilePath = string.IsNullOrWhiteSpace(imageLink.Filename) || !imageLink.Filename.Contains(".")
+                        ? filePath + Path.DirectorySeparatorChar + fileNameBase + "_" + count.ToString("0000") + extention
+                        : destination + Path.DirectorySeparatorChar +
+                          imageLink.Filename.Insert(imageLink.Filename.LastIndexOf("."), count.ToString("0000"));
 
                     if (!existsingFiles.Contains(fullFilePath))
                     {
@@ -353,12 +435,17 @@ namespace RedditRip.Core
                 }
 
                 var detailsFilename = filePath + Path.DirectorySeparatorChar + "postDetails.txt";
-                File.WriteAllText(detailsFilename, details);
+
+                if (File.Exists(detailsFilename))
+                    details = Environment.NewLine + Environment.NewLine + details;
+
+                File.AppendAllText(detailsFilename, details);
             }
         }
 
         private async Task<bool> SaveFile(ImageLink imageLink, string filename, string extention)
         {
+            var isImage = videoExtensions.Contains(extention.Replace(".", ""));
             using (var wc = new WebClient())
             {
                 try
@@ -368,51 +455,59 @@ namespace RedditRip.Core
 
                     var link = imageLink.Url.StartsWith("http://") ? imageLink.Url : "http://" + imageLink.Url.Substring(imageLink.Url.IndexOf(domain, StringComparison.Ordinal));
 
-                    var tempFilename = Path.GetTempPath() + Path.GetRandomFileName() + extention;
+                    var tempFilename = isImage ? Path.GetTempPath() + Path.GetRandomFileName() + extention : filename;
 
                     await wc.DownloadFileTaskAsync(new Uri(link), tempFilename);
 
-                    using (var stream = new FileStream(tempFilename, FileMode.Open, FileAccess.Read))
+                    if (isImage)
                     {
-                        using (var image = Image.FromStream(stream))
+                        using (var stream = new FileStream(tempFilename, FileMode.Open, FileAccess.Read))
                         {
-                            //XPTitle
-                            SetImageProperty(image, 40091, Encoding.Unicode.GetBytes(imageLink.Post.Title + char.MinValue));
-                            //XPComment
-                            SetImageProperty(image, 40092, Encoding.Unicode.GetBytes(link + char.MinValue));
-                            //XPAuthor
-                            SetImageProperty(image, 40093, Encoding.Unicode.GetBytes(imageLink.Post.AuthorName + char.MinValue));
-                            //XPKeywords
-                            var keywords = new List<string>
+                            using (var image = Image.FromStream(stream))
                             {
-                                imageLink.Post.SubredditName,
-                                imageLink.Post.AuthorName,
-                                imageLink.Post.AuthorFlairText,
-                                imageLink.Post.Domain,
-                                imageLink.Post.LinkFlairText
-                            };
+                                //XPTitle
+                                SetImageProperty(image, 40091,
+                                    Encoding.Unicode.GetBytes(imageLink.Post.Title + char.MinValue));
+                                //XPComment
+                                SetImageProperty(image, 40092, Encoding.Unicode.GetBytes(link + char.MinValue));
+                                //XPAuthor
+                                SetImageProperty(image, 40093,
+                                    Encoding.Unicode.GetBytes(imageLink.Post.AuthorName + char.MinValue));
+                                //XPKeywords
+                                var keywords = new List<string>
+                                {
+                                    imageLink.Post.SubredditName,
+                                    imageLink.Post.AuthorName,
+                                    imageLink.Post.AuthorFlairText,
+                                    imageLink.Post.Domain,
+                                    imageLink.Post.LinkFlairText
+                                };
 
-                            if (imageLink.Post.NSFW)
-                                keywords.Add("NSFW");
+                                if (imageLink.Post.NSFW)
+                                    keywords.Add("NSFW");
 
-                            var title =
-                                imageLink.Post.Title
-                                    .Replace('(', '[')
-                                    .Replace(')', ']')
-                                    .Replace('{', '[')
-                                    .Replace('}', ']');
+                                var title =
+                                    imageLink.Post.Title
+                                        .Replace('(', '[')
+                                        .Replace(')', ']')
+                                        .Replace('{', '[')
+                                        .Replace('}', ']');
 
-                            keywords.AddRange(from Match match in Regex.Matches(title, @"\[(.*?)\]")
-                                select match.Groups[1].Value.Replace(" ", ""));
-                            
-                            SetImageProperty(image, 40094, Encoding.Unicode.GetBytes(string.Join(";", keywords) + char.MinValue));
-                            //Save to desination
-                            image.Save(filename);
+                                keywords.AddRange(from Match match in Regex.Matches(title, @"\[(.*?)\]")
+                                    select match.Groups[1].Value.Replace(" ", ""));
+
+                                SetImageProperty(image, 40094,
+                                    Encoding.Unicode.GetBytes(string.Join(";", keywords) + char.MinValue));
+                                //Save to desination
+                                image.Save(filename);
+                            }
                         }
                     }
 
                     //Delete temp file after web client has been disposed (makes sure no handles to file left over)
-                    File.Delete(tempFilename);
+                    if (isImage)
+                        File.Delete(tempFilename);
+
                     OutputLine($"Downloaded: {imageLink.Url} to {filename}", true);
                 }
                 catch (OperationCanceledException)
@@ -464,6 +559,67 @@ namespace RedditRip.Core
             {
                 Log.Info(message);
             }
+        }
+
+        public async Task<IEnumerable<IImage>> GetImgurImageAsync(string id, CancellationToken token)
+        {
+            try
+            {
+                token.ThrowIfCancellationRequested();
+                var error = string.Empty;
+
+                //TODO:: Move to config
+                //       Given this is using entirely anonymous calls, there is no reason to keep the id and secret...well, a secret.
+                //       If this ever becomes popular, and we want to make authenticated calls; then I will register a new client for that purpose.
+                var client = new ImgurClient("5b7f2dbb306592e", "c6321d265e604df392cabd1c1d1fd5002bb918f0");
+
+                var albumEndpoint = new AlbumEndpoint(client);
+                try
+                {
+                    var album = await albumEndpoint.GetAlbumAsync(id);
+                    if (album != null)
+                        return album.Images;
+                }
+                catch (Exception e)
+                {
+                    error = e.Message;
+                }
+
+                token.ThrowIfCancellationRequested();
+                var imageEndpoint = new ImageEndpoint(client);
+
+                try
+                {
+                    var image = await imageEndpoint.GetImageAsync(id);
+
+                    if (image != null)
+                        return new List<IImage> { image };
+                }
+                catch (Exception e)
+                {
+                    error = error + e.Message;
+                }
+
+                if (!string.IsNullOrWhiteSpace(error))
+                    Log.Error(error);
+
+                return new List<IImage>();
+            }
+            catch (ImgurException imgurEx)
+            {
+                Log.Error("An error occurred getting an image from Imgur.");
+                Log.Error(imgurEx.Message);
+               return null;
+            }
+
+        }
+
+        private bool isSupportedDomain(string domain)
+        {
+            return domain.Contains("imgur.com") ||
+                   domain.Contains("eroshare.com") ||
+                   domain.Contains("reddituploads.com") ||
+                   domain.Contains("gfycat.com");
         }
     }
 }
