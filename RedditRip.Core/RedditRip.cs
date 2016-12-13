@@ -3,8 +3,8 @@ using RedditSharp.Things;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.Drawing.Imaging;
+using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -17,6 +17,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 using log4net.Core;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Linq;
+using RedditRip.Core.Imgur;
+using Image = System.Drawing.Image;
 
 namespace RedditRip.Core
 {
@@ -257,41 +262,29 @@ namespace RedditRip.Core
                 return links;
             }
 
-            string htmlString = await GetHtml(url, token);
+            //  Horibble and hacky! - until I find a better solition though, 
+            //  this method should be able to get the json object that imgur is using to render the page after load.
+            url = url + "/layout/grid";
+
+            var htmlString = await GetHtml(url, token);
             if (string.IsNullOrWhiteSpace(htmlString)) return links;
 
-            var caroselAlbum = htmlString.Contains(@"data-layout=""h""");
+            var start = htmlString.IndexOf("window.runSlots = ", StringComparison.InvariantCultureIgnoreCase) + "window.runSlots = ".Length;
+            var json =
+                htmlString.Substring(start,
+                    htmlString.IndexOf("var", start, StringComparison.InvariantCultureIgnoreCase) - start)
+                    .Replace("_config:", "\"_config\" :")
+                    .Replace("_place:", "\"_place\" :")
+                    .Replace("_item:", "\"_item\" :")
+                    .Trim()
+                    .Trim(';');
 
-            if (caroselAlbum)
-            {
-                htmlString = await GetHtml(url + "/all", token);
-                if (string.IsNullOrWhiteSpace(htmlString)) return links;
-            }
+            var data = JsonConvert.DeserializeObject<WindowRunSlots>(json);
+            var images = data._item.album_images.images;
 
-            var gridAlbum = htmlString.Contains(@"data-layout=""g""");
-
-            if (caroselAlbum && !gridAlbum) return links;
-
-            var regPattern = new Regex(@"<img[^>]*?src\s*=\s*[""']?([^'"" >]+?)[ '""][^>]*?>", RegexOptions.IgnoreCase);
-
-            var matchImageLinks = regPattern.Matches(htmlString);
-
-            OutputLine($"\tFound {matchImageLinks.Count} image(s) from link.", true);
-
-            foreach (Match m in matchImageLinks)
-            {
-                token.ThrowIfCancellationRequested();
-                var imgurl = m.Groups[1].Value.Replace(".gifv", ".gif");
-
-                if (!imgurl.Contains("imgur.com")) continue;
-
-                if (gridAlbum)
-                    imgurl = imgurl.Remove(imgurl.LastIndexOf('.') - 1, 1);
-                var domain = new Uri(imgurl).DnsSafeHost;
-                imgurl = imgurl.StartsWith("http://") ? imgurl : "http://" + imgurl.Substring(imgurl.IndexOf(domain, StringComparison.Ordinal));
-
-                links.Add(new ImageLink(post, imgurl, filename));
-            }
+            links.AddRange(
+                images.Select(
+                    image => new ImageLink(post, "http://i.imgur.com/" + image.hash + image.ext, filename + image.ext)));
 
             return links;
         }
@@ -302,9 +295,9 @@ namespace RedditRip.Core
 
             try
             {
-                using (var wchtml = new WebClient())
+                using (var client = new WebClient())
                 {
-                    htmlString = await wchtml.DownloadStringTaskAsync(new Uri(url));
+                    htmlString = await client.DownloadStringTaskAsync(new Uri(url));
                 }
             }
             catch (Exception e)
@@ -320,9 +313,9 @@ namespace RedditRip.Core
         {
             if (post.Value.Any() && !string.IsNullOrWhiteSpace(destination))
             {
-                var details = post.Value.FirstOrDefault().GetPostDetails(post);
-                var subName = post.Value.FirstOrDefault().Post.SubredditName;
-                var userName = post.Value.FirstOrDefault().Post.AuthorName;
+                var details = post.Value.FirstOrDefault()?.GetPostDetails(post);
+                var subName = post.Value.FirstOrDefault()?.Post.SubredditName;
+                var userName = post.Value.FirstOrDefault()?.Post.AuthorName;
                 var postId = post.Key;
                 var filePath = destination + Path.DirectorySeparatorChar + subName + Path.DirectorySeparatorChar + userName;
                 var fileNameBase = $"{userName}_{subName}_{postId}";
@@ -390,7 +383,29 @@ namespace RedditRip.Core
                             //XPAuthor
                             SetImageProperty(image, 40093, Encoding.Unicode.GetBytes(imageLink.Post.AuthorName + char.MinValue));
                             //XPKeywords
-                            SetImageProperty(image, 40094, Encoding.Unicode.GetBytes(imageLink.Post.SubredditName + ";" + imageLink.Post.AuthorName + ";" + imageLink.Post.AuthorFlairText + ";" + imageLink.Post.Domain + char.MinValue));
+                            var keywords = new List<string>
+                            {
+                                imageLink.Post.SubredditName,
+                                imageLink.Post.AuthorName,
+                                imageLink.Post.AuthorFlairText,
+                                imageLink.Post.Domain,
+                                imageLink.Post.LinkFlairText
+                            };
+
+                            if (imageLink.Post.NSFW)
+                                keywords.Add("NSFW");
+
+                            var title =
+                                imageLink.Post.Title
+                                    .Replace('(', '[')
+                                    .Replace(')', ']')
+                                    .Replace('{', '[')
+                                    .Replace('}', ']');
+
+                            keywords.AddRange(from Match match in Regex.Matches(title, @"\[(.*?)\]")
+                                select match.Groups[1].Value.Replace(" ", ""));
+                            
+                            SetImageProperty(image, 40094, Encoding.Unicode.GetBytes(string.Join(";", keywords) + char.MinValue));
                             //Save to desination
                             image.Save(filename);
                         }
@@ -426,7 +441,10 @@ namespace RedditRip.Core
 
         private static string GetExtention(string imgurl)
         {
-            var extention = (imgurl.Contains('.') && imgurl.LastIndexOf('.') > imgurl.LastIndexOf('/') && imgurl.LastIndexOf('.') < (imgurl.Length - 2)) ? imgurl.Substring(imgurl.LastIndexOf('.')) : string.Empty;
+            var extention = (imgurl.Contains('.') && imgurl.LastIndexOf('.') > imgurl.LastIndexOf('/') &&
+                             imgurl.LastIndexOf('.') < (imgurl.Length - 2))
+                ? imgurl.Substring(imgurl.LastIndexOf('.'))
+                : string.Empty;
 
             if (extention.Contains('?'))
                 extention = extention.Substring(0, extention.IndexOf('?'));
